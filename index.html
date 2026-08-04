@@ -477,6 +477,12 @@ body.readonly main { height:calc(100vh - 56px); }
     <div class="aside-label">Clientes</div>
     <div id="client-list"></div>
     <button class="btn-add-client" onclick="addClientPrompt()">＋ Nuevo cliente</button>
+    <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+      <button id="btn-todos" onclick="selectTodos()"
+        style="width:100%;text-align:left;background:none;border:1px solid var(--border2);border-radius:8px;padding:8px 10px;cursor:pointer;font-size:.82rem;font-weight:600;color:var(--text2);display:flex;align-items:center;gap:8px;transition:all .15s">
+        🌐 Todos los clientes
+      </button>
+    </div>
   </aside>
 
   <main>
@@ -491,6 +497,18 @@ body.readonly main { height:calc(100vh - 56px); }
     </div>
 
     <div class="content">
+
+      <!-- ═══ TODOS LOS CLIENTES ═══ -->
+      <div id="sec-todos" style="display:none;height:100%;overflow-y:auto">
+        <div style="display:flex;gap:6px;padding:12px 16px 0;border-bottom:1px solid var(--border);background:var(--white)">
+          <button class="cad-stab active" id="todos-tab-equipos" onclick="switchTodosTab('equipos')">📋 Vista de equipos</button>
+          <button class="cad-stab" id="todos-tab-licencias" onclick="switchTodosTab('licencias')">🔑 Licencias y vencimientos</button>
+          <button class="cad-stab" id="todos-tab-analisis" onclick="switchTodosTab('analisis')">📊 Análisis e Informes</button>
+        </div>
+        <div id="todos-equipos" style="padding:16px"></div>
+        <div id="todos-licencias" style="display:none;padding:16px"></div>
+        <div id="todos-analisis" style="display:none;padding:16px"></div>
+      </div>
 
       <!-- ═══ GALERÍA ═══ -->
       <div class="sec active" id="sec-galeria">
@@ -746,6 +764,7 @@ body.readonly main { height:calc(100vh - 56px); }
     <div class="modal-ftr">
       <button class="btn btn-default" onclick="closeModal('modal-ver')">Cerrar</button>
       <button class="btn btn-default" onclick="verQR()">🔲 QR</button>
+      <button class="btn btn-default" id="btn-ver-lic" style="background:#faf5ff;color:#7c3aed;border-color:#e9d5ff">🔑 Licencias</button>
       <button class="btn btn-primary" id="btn-ver-edit">✏ Editar</button>
     </div>
   </div>
@@ -813,6 +832,57 @@ body.readonly main { height:calc(100vh - 56px); }
   </div>
 </div>
 
+<!-- ═══ MODAL LICENCIA ═══ -->
+<div class="modal-overlay hidden" id="modal-licencia">
+  <div class="modal" style="max-width:580px">
+    <div class="modal-hdr">
+      <h2 id="lic-modal-title">Agregar licencia</h2>
+      <button class="btn btn-default btn-icon" onclick="closeModal('modal-licencia')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <!-- Equipo selector injected by JS as #lic-eq-wrap -->
+        <div class="form-group"><label>N° Pedido / Orden</label><input id="lic-pedido" placeholder="Ej: S05664"></div>
+        <div class="form-group"><label>Tipo de licencia</label>
+          <select id="lic-tipo" style="width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:7px;padding:8px 10px;font-size:.84rem">
+            <option>Antivirus</option><option>Office 365</option><option>Microsoft 365</option>
+            <option>Windows</option><option>Software contable</option><option>ERP / CRM</option>
+            <option>Backup / Nube</option><option>Dominio / SSL</option>
+            <option>Contrato COSEINCO</option><option>Otro</option>
+          </select>
+        </div>
+        <div class="form-group full"><label>Producto / Descripcion</label><input id="lic-producto" placeholder="Ej: Licencia Antivirus Nod32 Eset, 1 pc, suscripcion 12 meses"></div>
+        <div class="form-group"><label>N de licencia / Serial</label><input id="lic-serial" placeholder="Opcional"></div>
+        <div class="form-group"><label>Version</label><input id="lic-version" placeholder="Ej: v10, 2021..."></div>
+        <div class="form-group"><label>Fecha de activacion</label><input id="lic-fecha-inicio" type="date"></div>
+        <div class="form-group"><label>Fecha de vencimiento</label><input id="lic-fecha-fin" type="date"></div>
+        <div class="form-group"><label>Costo</label><input id="lic-costo" type="number" placeholder="0.00" min="0" step="0.01"></div>
+        <div class="form-group"><label>Moneda</label>
+          <select id="lic-moneda" style="width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:7px;padding:8px 10px;font-size:.84rem">
+            <option value="PEN">PEN (Soles)</option><option value="USD">USD (Dolares)</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Categoria</label>
+          <select id="lic-categoria" style="width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:7px;padding:8px 10px;font-size:.84rem">
+            <option>COTIZACION ACTIVA</option><option>SUNAT</option><option>RECIBO</option><option>OTRO</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Estado de orden</label>
+          <select id="lic-estado-orden" style="width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:7px;padding:8px 10px;font-size:.84rem">
+            <option>Cotizacion</option><option>Ordenes de venta</option><option>Perdido</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Proveedor</label><input id="lic-proveedor" placeholder="Ej: Microsoft, ESET Peru..."></div>
+        <div class="form-group full"><label>Observaciones</label><input id="lic-obs" placeholder="Notas adicionales"></div>
+      </div>
+    </div>
+    <div class="modal-ftr">
+      <button class="btn btn-default" onclick="closeModal('modal-licencia')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarLicencia()">Guardar licencia</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast-wrap" id="toast-wrap"></div>
 
 
@@ -876,6 +946,8 @@ function load() {
     if(!c.historial) c.historial=[];
     if(!c.creds) c.creds={ruc:'',pinHash:''};
     if(!c.piezasCustom) c.piezasCustom=[];
+    if(!c.snapshots) c.snapshots=[];   // [{ym:'2026-08', score:72, fecha:'...'}]
+    if(!c.criticidad) c.criticidad={};  // { 'AREA': 'alta'|'media'|'baja' }
   }
 }
 
@@ -883,6 +955,9 @@ function load() {
 function renderClients() {
   const el=document.getElementById('client-list');
   const ids=Object.keys(state.clients);
+  const bt=document.getElementById('btn-todos');
+  if(state.todosMode&&bt){bt.style.background='var(--accent-light)';bt.style.color='var(--accent)';bt.style.borderColor='var(--accent)';}
+  else if(bt){bt.style.background='none';bt.style.color='var(--text2)';bt.style.borderColor='var(--border2)';}
   if(!ids.length){el.innerHTML='<p style="font-size:.78rem;color:var(--text3);padding:6px 8px">Sin clientes</p>';return;}
   el.innerHTML=ids.map(id=>{
     const c=state.clients[id];
@@ -894,7 +969,1054 @@ function renderClients() {
     </button>`;
   }).join('');
 }
-function selectClient(id){state.activeClient=id;renderClients();renderAll();}
+function selectClient(id){
+  state.activeClient=id;
+  state.todosMode=false;
+  document.getElementById('sec-todos').style.display='none';
+  document.querySelectorAll('.tab,.sec').forEach(el=>el.style.display='');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.sec').forEach(s=>s.classList.remove('active'));
+  document.querySelector('.tab[onclick="switchTab(\'galeria\')"]').classList.add('active');
+  document.getElementById('sec-galeria').classList.add('active');
+  // Update btn-todos style
+  const bt=document.getElementById('btn-todos');
+  if(bt){bt.style.background='none';bt.style.color='var(--text2)';bt.style.borderColor='var(--border2)';}
+  renderClients();renderAll();
+}
+
+// ══════════ TODOS LOS CLIENTES ══════════
+function selectTodos(){
+  state.activeClient=null;
+  state.todosMode=true;
+  // Hide normal tabs/sections
+  document.querySelectorAll('.tab').forEach(t=>t.style.display='none');
+  document.querySelectorAll('.sec').forEach(s=>{s.classList.remove('active');s.style.display='none';});
+  document.getElementById('sec-todos').style.display='';
+  // Style btn-todos
+  const bt=document.getElementById('btn-todos');
+  if(bt){bt.style.background='var(--accent-light)';bt.style.color='var(--accent)';bt.style.borderColor='var(--accent)';}
+  renderClients();
+  switchTodosTab('equipos');
+}
+
+function switchTodosTab(tab){
+  state.todosTab=tab;
+  document.getElementById('todos-equipos').style.display   = tab==='equipos'   ? '' : 'none';
+  document.getElementById('todos-licencias').style.display = tab==='licencias' ? '' : 'none';
+  document.getElementById('todos-analisis').style.display  = tab==='analisis'  ? '' : 'none';
+  const tabE=document.getElementById('todos-tab-equipos');
+  const tabL=document.getElementById('todos-tab-licencias');
+  const tabA=document.getElementById('todos-tab-analisis');
+  [tabE,tabL,tabA].forEach(b=>{if(b)b.classList.remove('active');});
+  if(tab==='equipos'&&tabE) tabE.classList.add('active');
+  if(tab==='licencias'&&tabL) tabL.classList.add('active');
+  if(tab==='analisis'&&tabA) tabA.classList.add('active');
+  if(tab==='equipos')   renderTodosEquipos(state.todosFilterClient);
+  if(tab==='licencias') renderTodosLicencias();
+  if(tab==='analisis')  renderAnalisisLicencias();
+}
+
+// ── Vista unificada de equipos (todos los clientes) ──
+function renderTodosEquipos(filterClientId){
+  const el=document.getElementById('todos-equipos');
+  const ids=Object.keys(state.clients);
+  if(!ids.length){el.innerHTML=emptyHTML('👈','Sin clientes','Crea clientes primero');return;}
+
+  // Collect all equipos with client context
+  const rows=[];
+  ids.forEach(id=>{
+    if(filterClientId&&filterClientId!==id) return;
+    const c=state.clients[id];
+    c.equipos.forEach(eq=>rows.push({eq,clientId:id,clientName:c.name}));
+  });
+
+  // Global KPIs
+  let totalEqs=0,totalCrit=0,totalMed=0,totalOk=0;
+  ids.forEach(id=>{
+    state.clients[id].equipos.forEach(eq=>{
+      totalEqs++;
+      const {severity}=evaluarEquipo(eq);
+      if(severity==='critical')totalCrit++;
+      else if(severity==='medium')totalMed++;
+      else totalOk++;
+    });
+  });
+
+  // Filter bar
+  const filterBar=`
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+      <div style="position:relative;flex:1;min-width:200px">
+        <input id="todos-eq-search" placeholder="🔍  Buscar equipo, usuario, hostname…"
+          oninput="renderTodosEquipos(state.todosFilterClient)"
+          style="width:100%;padding:8px 12px;border:1px solid var(--border2);border-radius:8px;font-size:.84rem;background:var(--white);color:var(--text);outline:none;box-sizing:border-box">
+      </div>
+      <select id="todos-eq-tipo" onchange="renderTodosEquipos(state.todosFilterClient)"
+        style="padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:.82rem;background:var(--white);color:var(--text);cursor:pointer">
+        <option value="">Todos los tipos</option>
+        <option>LAPTOP</option><option>DESKTOP</option><option>SERVIDOR</option>
+        <option>IMPRESORA</option><option>SWITCH</option><option>OTRO</option>
+      </select>
+      <select id="todos-eq-cliente" onchange="state.todosFilterClient=this.value;renderTodosEquipos(this.value)"
+        style="padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:.82rem;background:var(--white);color:var(--text);cursor:pointer">
+        <option value="">Todos los clientes</option>
+        ${ids.map(id=>`<option value="${id}" ${filterClientId===id?'selected':''}>${esc(state.clients[id].name)}</option>`).join('')}
+      </select>
+      <span style="font-size:.78rem;color:var(--text3);white-space:nowrap" id="todos-eq-count">${rows.length} equipo${rows.length!==1?'s':''}</span>
+    </div>`;
+
+  // KPIs ejecutivos
+  const kpisHTML=`
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+      <div style="background:var(--white);border:1px solid var(--border);border-top:3px solid #2563eb;border-radius:10px;padding:14px 16px">
+        <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:6px">📦 Total equipos</div>
+        <div style="font-size:2rem;font-weight:800;color:#2563eb;line-height:1">${totalEqs}</div>
+        <div style="font-size:.72rem;color:var(--text3);margin-top:4px">${ids.length} empresa${ids.length!==1?'s':''}</div>
+      </div>
+      <div style="background:var(--white);border:1px solid var(--border);border-top:3px solid #dc2626;border-radius:10px;padding:14px 16px">
+        <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:6px">🔴 Críticos</div>
+        <div style="font-size:2rem;font-weight:800;color:#dc2626;line-height:1">${totalCrit}</div>
+        <div style="font-size:.72rem;color:var(--text3);margin-top:4px">${totalEqs?Math.round(totalCrit/totalEqs*100):0}% de la flota</div>
+      </div>
+      <div style="background:var(--white);border:1px solid var(--border);border-top:3px solid #ea580c;border-radius:10px;padding:14px 16px">
+        <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:6px">🟠 Moderados</div>
+        <div style="font-size:2rem;font-weight:800;color:#ea580c;line-height:1">${totalMed}</div>
+        <div style="font-size:.72rem;color:var(--text3);margin-top:4px">${totalEqs?Math.round(totalMed/totalEqs*100):0}% de la flota</div>
+      </div>
+      <div style="background:var(--white);border:1px solid var(--border);border-top:3px solid #16a34a;border-radius:10px;padding:14px 16px">
+        <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:6px">🟢 Operativos</div>
+        <div style="font-size:2rem;font-weight:800;color:#16a34a;line-height:1">${totalOk}</div>
+        <div style="font-size:.72rem;color:var(--text3);margin-top:4px">${totalEqs?Math.round(totalOk/totalEqs*100):0}% de la flota</div>
+      </div>
+    </div>`;
+
+  // Table
+  const SEV_BADGE={
+    critical:`<span style="font-size:.7rem;font-weight:700;background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;border-radius:5px;padding:2px 7px;white-space:nowrap">🔴 Crítico</span>`,
+    medium:`<span style="font-size:.7rem;font-weight:700;background:#fff7ed;color:#ea580c;border:1px solid #fed7aa;border-radius:5px;padding:2px 7px;white-space:nowrap">🟠 Moderado</span>`,
+    low:`<span style="font-size:.7rem;font-weight:700;background:#fffbeb;color:#d97706;border:1px solid #fde68a;border-radius:5px;padding:2px 7px;white-space:nowrap">🟡 Bajo riesgo</span>`,
+    ok:`<span style="font-size:.7rem;font-weight:700;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:5px;padding:2px 7px;white-space:nowrap">🟢 Operativo</span>`,
+  };
+
+  // Apply filters
+  const q=(document.getElementById('todos-eq-search')?.value||'').toLowerCase();
+  const tipoF=(document.getElementById('todos-eq-tipo')?.value||'').toLowerCase();
+  let filtered=rows.filter(({eq,clientName})=>{
+    if(tipoF&&(eq.TIPO||'').toLowerCase()!==tipoF) return false;
+    if(q){
+      const hay=[eq.HOSTNAME,eq.MODELO,eq.MARCA,eq.USUARIO,eq.AREA,eq.SERIE,eq.SISTEMA,clientName].some(v=>(v||'').toLowerCase().includes(q));
+      if(!hay) return false;
+    }
+    return true;
+  });
+
+  const tableHTML=`
+    <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+      <!-- Top scrollbar -->
+      <div id="te-scroll-top" style="overflow-x:auto;overflow-y:hidden;height:14px">
+        <div id="te-scroll-inner" style="height:1px"></div>
+      </div>
+      <div id="te-table-wrap" style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:.78rem">
+          <thead>
+            <tr style="background:var(--bg);border-bottom:2px solid var(--border)">
+              <th style="padding:10px 14px;text-align:left;font-weight:700;font-size:.68rem;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);white-space:nowrap;cursor:pointer" onclick="sortTodosEq('hostname')">Equipo / Hostname ↕</th>
+              <th style="padding:10px 14px;text-align:left;font-weight:700;font-size:.68rem;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);white-space:nowrap">Usuario / Área</th>
+              <th style="padding:10px 14px;text-align:left;font-weight:700;font-size:.68rem;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);white-space:nowrap">Marca / Modelo</th>
+              <th style="padding:10px 14px;text-align:left;font-weight:700;font-size:.68rem;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);white-space:nowrap">Sistema Operativo</th>
+              <th style="padding:10px 14px;text-align:left;font-weight:700;font-size:.68rem;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);white-space:nowrap">Office / Suite</th>
+              <th style="padding:10px 14px;text-align:left;font-weight:700;font-size:.68rem;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);white-space:nowrap">Otras licencias</th>
+              <th style="padding:10px 14px;text-align:left;font-weight:700;font-size:.68rem;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);white-space:nowrap">Estado IT</th>
+              <th style="padding:10px 14px;text-align:left;font-weight:700;font-size:.68rem;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);white-space:nowrap">Acciones</th>
+              <th style="padding:10px 14px;text-align:left;font-weight:700;font-size:.68rem;text-transform:uppercase;letter-spacing:.5px;color:var(--accent);white-space:nowrap;position:sticky;right:0;background:var(--bg)">Cliente</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${!filtered.length?`<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--text3)">Sin resultados para los filtros aplicados</td></tr>`
+            :filtered.map(({eq,clientId,clientName},idx)=>{
+              const {severity}=evaluarEquipo(eq);
+              // Office license from eq fields
+              const officeVal=eq.OFFICE||'—';
+              // Other licenses from eq.licencias
+              const otrasLics=(eq.licencias||[]);
+              const otrasHTML=otrasLics.length
+                ? otrasLics.slice(0,2).map(l=>{
+                    const dias=diasRestantes(l.fechaFin);
+                    const est=licEstado(dias);
+                    return `<span style="display:inline-block;font-size:.68rem;font-weight:600;background:${est.bg};color:${est.color};border:1px solid ${est.color}40;border-radius:4px;padding:1px 6px;margin:1px 2px 1px 0;white-space:nowrap">${esc(l.producto||l.tipo)}</span>`;
+                  }).join('')+(otrasLics.length>2?`<span style="font-size:.68rem;color:var(--text3)">+${otrasLics.length-2}</span>`:'')
+                : '<span style="color:var(--text3);font-size:.72rem">—</span>';
+              return `<tr style="border-bottom:1px solid var(--border);background:${idx%2===0?'var(--white)':'var(--bg)'};" onmouseover="this.style.background='var(--accent-light)'" onmouseout="this.style.background='${idx%2===0?'var(--white)':'var(--bg)'}'">`
+                +`<td style="padding:10px 14px"><div style="font-weight:700;color:var(--text)">${esc(eq.HOSTNAME||'—')}</div><div style="font-size:.7rem;color:var(--text3);font-family:monospace">${esc(eq.TIPO||'')} · ${esc(eq.SERIE||'')}</div></td>`
+                +`<td style="padding:10px 14px"><div style="color:var(--text)">${esc(eq.USUARIO||'—')}</div><div style="font-size:.7rem;color:var(--text3)">${esc(eq.AREA||'—')}</div></td>`
+                +`<td style="padding:10px 14px"><div style="color:var(--text)">${esc(eq.MARCA||'—')}</div><div style="font-size:.7rem;color:var(--text3)">${esc(eq.MODELO||'')}</div></td>`
+                +`<td style="padding:10px 14px;white-space:nowrap"><span style="font-size:.78rem;color:var(--text)">${esc(eq.SISTEMA||'—')}</span></td>`
+                +`<td style="padding:10px 14px;white-space:nowrap"><span style="font-size:.78rem;color:var(--text)">${esc(officeVal)}</span></td>`
+                +`<td style="padding:10px 14px">${otrasHTML}</td>`
+                +`<td style="padding:10px 14px">${SEV_BADGE[severity]||SEV_BADGE.ok}</td>`
+                +`<td style="padding:10px 14px;white-space:nowrap">
+                    <button onclick="verEquipoCtx('${clientId}','${eq._id}')" style="background:var(--bg);border:1px solid var(--border2);color:var(--text2);border-radius:5px;padding:4px 8px;cursor:pointer;font-size:.74rem;margin-right:2px">👁</button>
+                    <button onclick="openAddLicencia('${clientId}','${eq._id}')" style="background:#faf5ff;border:1px solid #e9d5ff;color:#7c3aed;border-radius:5px;padding:4px 8px;cursor:pointer;font-size:.74rem">🔑</button>
+                  </td>`
+                +`<td style="padding:10px 14px;position:sticky;right:0;background:${idx%2===0?'var(--white)':'var(--bg)'}">
+                    <div style="display:flex;align-items:center;gap:6px">
+                      <span style="width:8px;height:8px;border-radius:50%;background:${strColor(clientId)};flex-shrink:0"></span>
+                      <span style="font-size:.78rem;font-weight:600;color:var(--text);white-space:nowrap">${esc(clientName)}</span>
+                    </div>
+                  </td>`
+                +`</tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  document.getElementById('todos-eq-count')?.remove();
+  el.innerHTML=filterBar+kpisHTML+`<div style="font-size:.76rem;color:var(--text3);margin-bottom:8px">Mostrando <b>${filtered.length}</b> de <b>${rows.length}</b> equipos</div>`+tableHTML;
+
+  // Sync top scrollbar
+  setTimeout(()=>{
+    const wrap=document.getElementById('te-table-wrap');
+    const top=document.getElementById('te-scroll-top');
+    const inner=document.getElementById('te-scroll-inner');
+    const t=wrap?.querySelector('table');
+    if(t&&inner) inner.style.width=t.scrollWidth+'px';
+    if(wrap&&top&&!top.dataset.bound){
+      top.dataset.bound='1';
+      top.addEventListener('scroll',()=>wrap.scrollLeft=top.scrollLeft);
+      wrap.addEventListener('scroll',()=>top.scrollLeft=wrap.scrollLeft);
+    }
+  },0);
+}
+function verEquipoCtx(clientId,eqId){
+  // Temporarily set active client to view equipo
+  const prev=state.activeClient;
+  state.activeClient=clientId;
+  verEquipo(eqId);
+  // Restore after modal closes
+  const orig=document.getElementById('btn-ver-edit').onclick;
+  document.getElementById('btn-ver-edit').onclick=()=>{closeModal('modal-ver');state.activeClient=clientId;editEquipo(eqId);};
+}
+function sortTodosEq(col){
+  state.todosEqSort=state.todosEqSort===col?col+'_desc':col;
+  renderTodosEquipos(state.todosFilterClient);
+}
+
+// ══════════ LICENCIAS ══════════
+// Estructura: cada equipo tiene eq.licencias = [{id,tipo,producto,serial,version,fechaInicio,fechaFin,costo,proveedor,obs}]
+function diasRestantes(fechaFin){
+  if(!fechaFin) return null;
+  const hoy=new Date(); hoy.setHours(0,0,0,0);
+  const fin=new Date(fechaFin+'T00:00:00');
+  return Math.round((fin-hoy)/(1000*60*60*24));
+}
+function licEstado(dias){
+  if(dias===null) return {label:'Sin fecha',color:'#98a2b3',bg:'#f8fafc',icon:'⚪'};
+  if(dias<0)      return {label:'Vencida',color:'#dc2626',bg:'#fef2f2',icon:'🔴'};
+  if(dias<=15)    return {label:'Vence pronto',color:'#dc2626',bg:'#fef2f2',icon:'🔴'};
+  if(dias<=30)    return {label:'Por vencer',color:'#ea580c',bg:'#fff7ed',icon:'🟠'};
+  if(dias<=90)    return {label:'Vigente',color:'#d97706',bg:'#fffbeb',icon:'🟡'};
+  return {label:'Vigente',color:'#16a34a',bg:'#f0fdf4',icon:'🟢'};
+}
+
+function renderTodosLicencias(){
+  const el=document.getElementById('todos-licencias');
+  const ids=Object.keys(state.clients);
+
+  // Collect all licencias with full context
+  const todas=[];
+  ids.forEach(id=>{
+    const c=state.clients[id];
+    c.equipos.forEach(eq=>{
+      (eq.licencias||[]).forEach(lic=>{
+        todas.push({lic,eq,clientId:id,clientName:c.name});
+      });
+    });
+  });
+
+  // Compute metrics
+  let vencidas=0,alerta15=0,alerta30=0,vigentes=0,sinFecha=0,costoTotal=0,costoAnual=0;
+  todas.forEach(({lic})=>{
+    const dias=diasRestantes(lic.fechaFin);
+    const costo=parseFloat(lic.costo||0);
+    costoTotal+=costo;
+    if(dias===null){ sinFecha++; return; }
+    if(dias<0){ vencidas++; return; }
+    if(dias<=15){ alerta15++; alerta30++; }
+    else if(dias<=30){ alerta30++; }
+    vigentes++;
+  });
+  // Estimate annual cost (sum of all license costs)
+  costoAnual=costoTotal;
+  const healthPct=todas.length?Math.round((vigentes/todas.length)*100):100;
+  const healthColor=healthPct>=80?'#16a34a':healthPct>=60?'#d97706':'#dc2626';
+
+  // ── Filter state — leer del DOM ANTES de construir el template ──
+  const licFilter=state.licFilter||'all';
+  const licSearch=(document.getElementById('lic-search')?.value||'').toLowerCase();
+  const monedaF=document.getElementById('lic-moneda-filter')?.value||'';
+  const catF=document.getElementById('lic-cat-filter')?.value||'';
+  const ordenF=document.getElementById('lic-orden-filter')?.value||'';
+
+  // ── KPI DASHBOARD EJECUTIVO ──
+  const kpisHTML=`
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:24px">
+
+      <!-- KPI 1: Activas vs total -->
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.05)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+          <div>
+            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3)">🔑 Licencias activas</div>
+            <div style="font-size:1.8rem;font-weight:800;color:#2563eb;line-height:1.1;margin-top:4px">${vigentes}<span style="font-size:.9rem;font-weight:500;color:var(--text2)"> / ${todas.length}</span></div>
+          </div>
+          <div style="width:42px;height:42px;border-radius:50%;background:#dbeafe;display:flex;align-items:center;justify-content:center;font-size:1.2rem">🔑</div>
+        </div>
+        <div style="background:var(--bg);border-radius:6px;height:6px;overflow:hidden">
+          <div style="height:100%;background:#2563eb;border-radius:6px;width:${todas.length?Math.round(vigentes/todas.length*100):0}%"></div>
+        </div>
+        <div style="font-size:.7rem;color:var(--text3);margin-top:6px">${sinFecha} sin fecha de vencimiento</div>
+      </div>
+
+      <!-- KPI 2: Alertas vencimiento -->
+      <div style="background:var(--white);border:1px solid ${alerta15>0?'#fca5a5':'var(--border)'};border-radius:12px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.05);cursor:pointer" onclick="state.licFilter='alertas';renderTodosLicencias()">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+          <div>
+            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3)">⚠️ Alertas vencimiento</div>
+            <div style="font-size:1.8rem;font-weight:800;color:${alerta30>0?'#ea580c':'#16a34a'};line-height:1.1;margin-top:4px">${alerta30}</div>
+          </div>
+          <div style="width:42px;height:42px;border-radius:50%;background:${alerta15>0?'#fef2f2':'#f0fdf4'};display:flex;align-items:center;justify-content:center;font-size:1.2rem">${alerta15>0?'🚨':'✅'}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="font-size:.69rem;font-weight:700;background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;border-radius:5px;padding:2px 7px">🔴 ≤15d: ${alerta15}</span>
+          <span style="font-size:.69rem;font-weight:700;background:#fff7ed;color:#ea580c;border:1px solid #fed7aa;border-radius:5px;padding:2px 7px">🟠 ≤30d: ${alerta30}</span>
+        </div>
+        <div style="font-size:.68rem;color:var(--text3);margin-top:6px">Clic para filtrar</div>
+      </div>
+
+      <!-- KPI 3: Vencidas -->
+      <div style="background:var(--white);border:1px solid ${vencidas>0?'#fca5a5':'var(--border)'};border-radius:12px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.05);cursor:pointer" onclick="state.licFilter='vencidas';renderTodosLicencias()">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+          <div>
+            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3)">🔴 Vencidas / Renovar</div>
+            <div style="font-size:1.8rem;font-weight:800;color:${vencidas>0?'#dc2626':'#16a34a'};line-height:1.1;margin-top:4px">${vencidas}</div>
+          </div>
+          <div style="width:42px;height:42px;border-radius:50%;background:${vencidas>0?'#fef2f2':'#f0fdf4'};display:flex;align-items:center;justify-content:center;font-size:1.2rem">${vencidas>0?'⛔':'✅'}</div>
+        </div>
+        <div style="font-size:.7rem;color:${vencidas>0?'#dc2626':'var(--text3)'}">
+          ${vencidas>0?`${vencidas} licencia${vencidas!==1?'s':''} requiere${vencidas===1?'':'n'} renovación inmediata`:'Sin licencias vencidas ✅'}
+        </div>
+        <div style="font-size:.68rem;color:var(--text3);margin-top:4px">Clic para filtrar</div>
+      </div>
+
+      <!-- KPI 4: Inversión -->
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.05)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+          <div>
+            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3)">💰 Inversión registrada</div>
+            <div style="font-size:1.3rem;font-weight:800;color:#7c3aed;line-height:1.2;margin-top:4px">${fmtSoles(costoTotal)}</div>
+          </div>
+          <div style="width:42px;height:42px;border-radius:50%;background:#faf5ff;display:flex;align-items:center;justify-content:center;font-size:1.2rem">💰</div>
+        </div>
+        <div style="font-size:.7rem;color:var(--text3)">${todas.length} licencia${todas.length!==1?'s':''} · Promedio ${todas.length?fmtSoles(Math.round(costoTotal/todas.length)):'S/ 0'}</div>
+        <div style="font-size:.68rem;color:var(--text3);margin-top:4px">Costo total acumulado</div>
+      </div>
+
+      <!-- KPI 5: Health Score de licenciamiento -->
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.05);grid-column:span 1">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+          <div>
+            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3)">🛡️ Salud de licenciamiento</div>
+            <div style="font-size:1.8rem;font-weight:800;color:${healthColor};line-height:1.1;margin-top:4px">${healthPct}<span style="font-size:.9rem;font-weight:500;color:var(--text2)">%</span></div>
+          </div>
+          <div style="width:42px;height:42px;border-radius:50%;background:${healthColor}18;display:flex;align-items:center;justify-content:center;font-size:1.2rem">${healthPct>=80?'🟢':healthPct>=60?'🟡':'🔴'}</div>
+        </div>
+        <div style="background:var(--bg);border-radius:6px;height:8px;overflow:hidden;margin-bottom:6px">
+          <div style="height:100%;background:${healthColor};border-radius:6px;width:${healthPct}%;transition:width .4s ease"></div>
+        </div>
+        <div style="font-size:.7rem;color:var(--text3)">${healthPct>=80?'Licenciamiento en buen estado':healthPct>=60?'Requiere atención':'Estado crítico de licenciamiento'}</div>
+      </div>
+    </div>`;
+
+  // ── Filter bar ──
+  // Build dynamic category and estado options from actual data
+  const categoriasUsadas=[...new Set(todas.map(({lic})=>lic.categoria||'').filter(Boolean))].sort();
+  const estadosUsados=[...new Set(todas.map(({lic})=>lic.estadoOrden||'').filter(Boolean))].sort();
+
+  const filterBarHTML=`
+    <!-- Fila 1: buscador + selectores de moneda (arriba) -->
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <div style="position:relative;flex:1;min-width:200px">
+        <input id="lic-search" placeholder="🔍  Buscar producto, equipo, empresa…"
+          oninput="renderTodosLicencias()"
+          value="${esc(licSearch)}"
+          style="width:100%;padding:8px 12px;border:1px solid var(--border2);border-radius:8px;font-size:.84rem;background:var(--white);color:var(--text);outline:none;box-sizing:border-box">
+      </div>
+      <select id="lic-moneda-filter" onchange="renderTodosLicencias()"
+        style="padding:7px 10px;border:1px solid var(--border2);border-radius:8px;font-size:.8rem;background:var(--white);color:var(--text);cursor:pointer">
+        <option value="">Toda moneda</option><option value="PEN" ${monedaF==='PEN'?'selected':''}>PEN</option><option value="USD" ${monedaF==='USD'?'selected':''}>USD</option>
+      </select>
+    </div>
+    <!-- Fila 2: chips estado + CATEGORÍA + ESTADO (espacio marcado) + botones acción -->
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+      ${[['all','Todas'],['vencidas','Vencidas'],['alertas','Por vencer (30d)'],['vigentes','Vigentes']].map(([v,l])=>
+        `<button onclick="state.licFilter='${v}';renderTodosLicencias()"
+          style="padding:6px 12px;border:1px solid ${licFilter===v?'var(--accent)':'var(--border2)'};background:${licFilter===v?'var(--accent-light)':'var(--white)'};color:${licFilter===v?'var(--accent)':'var(--text2)'};border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer;white-space:nowrap">${l}</button>`
+      ).join('')}
+      <!-- FILTROS CATEGORÍA y ESTADO en el espacio marcado (rojo) -->
+      <div style="display:flex;gap:6px;align-items:center;flex:1;min-width:0">
+        <select id="lic-cat-filter" onchange="renderTodosLicencias()"
+          style="flex:1;min-width:130px;padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:.78rem;background:var(--white);color:var(--text);cursor:pointer">
+          <option value="">Toda categoría</option>
+          ${categoriasUsadas.map(c=>`<option value="${esc(c)}" ${catF===c?'selected':''}>${esc(c)}</option>`).join('')}
+          ${!categoriasUsadas.includes('COTIZACION ACTIVA')?'<option value="COTIZACION ACTIVA">COTIZACION ACTIVA</option>':''}
+          ${!categoriasUsadas.includes('SUNAT')?'<option value="SUNAT">SUNAT</option>':''}
+          ${!categoriasUsadas.includes('RECIBO')?'<option value="RECIBO">RECIBO</option>':''}
+        </select>
+        <select id="lic-orden-filter" onchange="renderTodosLicencias()"
+          style="flex:1;min-width:130px;padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:.78rem;background:var(--white);color:var(--text);cursor:pointer">
+          <option value="">Todo estado</option>
+          ${estadosUsados.map(s=>`<option value="${esc(s)}" ${ordenF===s?'selected':''}>${esc(s)}</option>`).join('')}
+          ${!estadosUsados.includes('Cotizacion')?'<option value="Cotizacion">Cotizacion</option>':''}
+          ${!estadosUsados.includes('Ordenes de venta')?'<option value="Ordenes de venta">Ordenes de venta</option>':''}
+          ${!estadosUsados.includes('Perdido')?'<option value="Perdido">Perdido</option>':''}
+        </select>
+      </div>
+      <!-- Botones acción -->
+      <button onclick="openAddLicencia(Object.keys(state.clients)[0]||'')"
+        style="padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap">＋ Agregar licencia</button>
+      <button onclick="importarLicenciasCSV()"
+        style="padding:6px 14px;background:var(--white);color:var(--text2);border:1px solid var(--border2);border-radius:8px;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap">⬆ Importar CSV</button>
+      <button onclick="exportarLicenciasHTML()"
+        style="padding:6px 14px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap">⬇ Exportar HTML</button>
+    </div>`;
+
+  // Apply filters
+  let filtered=todas.filter(({lic,eq,clientName})=>{
+    const dias=diasRestantes(lic.fechaFin);
+    if(licFilter==='vencidas'&&!(dias!==null&&dias<0)) return false;
+    if(licFilter==='alertas'&&!(dias!==null&&dias>=0&&dias<=30)) return false;
+    if(licFilter==='vigentes'&&!(dias===null||dias>=0)) return false;
+    if(monedaF&&(lic.moneda||'PEN')!==monedaF) return false;
+    if(catF&&(lic.categoria||'')!==catF) return false;
+    if(ordenF&&(lic.estadoOrden||'')!==ordenF) return false;
+    if(licSearch){
+      const hay=[lic.producto,lic.tipo,lic.proveedor,lic.pedido,eq.HOSTNAME,eq.MODELO,eq.USUARIO,eq.AREA,clientName].some(v=>(v||'').toLowerCase().includes(licSearch));
+      if(!hay) return false;
+    }
+    return true;
+  }).sort((a,b)=>{
+    const da=diasRestantes(a.lic.fechaFin)??9999;
+    const db=diasRestantes(b.lic.fechaFin)??9999;
+    return da-db;
+  });
+
+  // ── Tabla unificada ──
+  const tablaHTML=`
+    <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:.8rem;font-weight:700;color:var(--text)">Licencias registradas</span>
+        <span style="font-size:.74rem;color:var(--text3)">${filtered.length} resultado${filtered.length!==1?'s':''}</span>
+      </div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:.78rem">
+          <thead>
+            <tr style="background:var(--bg);border-bottom:2px solid var(--border)">
+              <th style="padding:10px 14px;text-align:left;font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);white-space:nowrap">Pedido</th>
+              <th style="padding:10px 14px;text-align:left;font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);white-space:nowrap">Estado</th>
+              <th style="padding:10px 14px;text-align:left;font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);white-space:nowrap">Tipo</th>
+              <th style="padding:10px 14px;text-align:left;font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);white-space:nowrap">Producto / Versión</th>
+              <th style="padding:10px 14px;text-align:left;font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);white-space:nowrap">Equipo</th>
+              <th style="padding:10px 14px;text-align:left;font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);white-space:nowrap">Usuario / Área</th>
+              <th style="padding:10px 14px;text-align:left;font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);white-space:nowrap">Vencimiento</th>
+              <th style="padding:10px 14px;text-align:center;font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);white-space:nowrap">Días</th>
+              <th style="padding:10px 14px;text-align:right;font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);white-space:nowrap">Costo</th>
+              <th style="padding:10px 14px;text-align:left;font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);white-space:nowrap">Proveedor</th>
+              <th style="padding:10px 14px;text-align:left;font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);white-space:nowrap">Categoría</th>
+              <th style="padding:10px 14px;text-align:left;font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);white-space:nowrap">Orden</th>
+              <th style="padding:10px 14px;text-align:center;font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2)">Acciones</th>
+              <th style="padding:10px 14px;text-align:left;font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--accent);white-space:nowrap;position:sticky;right:0;background:var(--bg)">Cliente</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${!filtered.length
+              ?`<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text3)">
+                  <div style="font-size:1.5rem;margin-bottom:8px">🔑</div>
+                  ${licFilter==='all'&&!licSearch?'No hay licencias registradas. Usa ＋ Agregar licencia para comenzar.':'Sin resultados para los filtros aplicados.'}
+                </td></tr>`
+              :filtered.map(({lic,eq,clientId,clientName},idx)=>{
+                const dias=diasRestantes(lic.fechaFin);
+                const est=licEstado(dias);
+                const diasTxt=dias===null?'Sin fecha':dias<0?`Hace ${Math.abs(dias)}d`:dias===0?'HOY':`${dias}d`;
+                const diasColor=dias===null?'var(--text3)':dias<=15?'#dc2626':dias<=30?'#ea580c':dias<=90?'#d97706':'#16a34a';
+                return `<tr style="border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--accent-light)'" onmouseout="this.style.background=''">`
+                  +`<td style="padding:9px 14px;font-family:monospace;font-size:.74rem;color:var(--text2);white-space:nowrap">${esc(lic.pedido||'—')}</td>`
+                  +`<td style="padding:9px 14px"><span style="font-size:.72rem;font-weight:700;background:${est.bg};color:${est.color};border:1px solid ${est.color}40;border-radius:5px;padding:2px 8px;white-space:nowrap">${est.icon} ${est.label}</span></td>`
+                  +`<td style="padding:9px 14px;color:var(--text2);white-space:nowrap">${esc(lic.tipo||'—')}</td>`
+                  +`<td style="padding:9px 14px"><div style="font-weight:600;color:var(--text)">${esc(lic.producto||'—')}</div>${lic.version?`<div style="font-size:.7rem;color:var(--text3)">${esc(lic.version)}</div>`:''}</td>`
+                  +`<td style="padding:9px 14px;font-family:monospace;font-size:.75rem;color:var(--text);white-space:nowrap">${esc(eq.HOSTNAME||eq.MODELO||'—')}</td>`
+                  +`<td style="padding:9px 14px"><div style="color:var(--text2);font-size:.76rem">${esc(eq.USUARIO||'—')}</div><div style="font-size:.68rem;color:var(--text3)">${esc(eq.AREA||'—')}</div></td>`
+                  +`<td style="padding:9px 14px;white-space:nowrap;color:var(--text2);font-size:.76rem">${esc(lic.fechaFin||'—')}</td>`
+                  +`<td style="padding:9px 14px;text-align:center"><span style="font-size:.78rem;font-weight:800;color:${diasColor}">${diasTxt}</span></td>`
+                  +`<td style="padding:9px 14px;text-align:right;font-weight:600;color:var(--text);white-space:nowrap">${lic.costo?fmtSoles(parseFloat(lic.costo)):'—'}</td>`
+                  +`<td style="padding:9px 14px;color:var(--text2);font-size:.76rem;white-space:nowrap">${esc(lic.proveedor||'—')}</td>`
+                  +`<td style="padding:9px 14px;color:var(--text2);font-size:.74rem;white-space:nowrap">${esc(lic.categoria||'—')}</td>`
+                  +`<td style="padding:9px 14px;white-space:nowrap"><span style="font-size:.71rem;font-weight:600;padding:2px 7px;border-radius:5px;background:${ lic.estadoOrden==='Ordenes de venta'?'#f0fdf4':lic.estadoOrden==='Perdido'?'#fef2f2':'#eff6ff'};color:${lic.estadoOrden==='Ordenes de venta'?'#16a34a':lic.estadoOrden==='Perdido'?'#dc2626':'#2563eb'}">${esc(lic.estadoOrden||'—')}</span></td>`
+                  +`<td style="padding:9px 14px;text-align:center;white-space:nowrap">
+                      <button onclick="editLicencia('${clientId}','${eq._id}','${lic.id}')"
+                        style="background:var(--accent-light);color:var(--accent);border:1px solid #bfdbfe;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:.74rem;font-weight:600;margin-right:4px"
+                        title="Editar licencia">✏ Editar</button>
+                      <button onclick="confirmarEliminarLicencia('${clientId}','${eq._id}','${lic.id}','${esc(lic.producto||lic.tipo||'esta licencia').replace(/'/g,'').slice(0,40)}')"
+                        style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:.74rem;font-weight:600"
+                        title="Eliminar licencia">🗑 Eliminar</button>
+                    </td>`
+                  +`<td style="padding:9px 14px;position:sticky;right:0;background:var(--white)">
+                      <div style="display:flex;align-items:center;gap:6px">
+                        <span style="width:8px;height:8px;border-radius:50%;background:${strColor(clientId)};flex-shrink:0"></span>
+                        <span style="font-size:.76rem;font-weight:600;color:var(--text);white-space:nowrap">${esc(clientName)}</span>
+                      </div>
+                    </td>`
+                  +`</tr>`;
+              }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  el.innerHTML=kpisHTML+filterBarHTML+tablaHTML;
+}
+
+// Agrega una licencia desde el modal de todos-clientes (a nivel empresa)
+function openAddLicencia(clientId, eqId){
+  state.licEditing={clientId:clientId||null, eqId:eqId||null, licId:null};
+  document.getElementById('lic-modal-title').textContent='Agregar licencia';
+  ['lic-pedido','lic-producto','lic-serial','lic-version','lic-fecha-inicio','lic-fecha-fin','lic-costo','lic-proveedor','lic-obs']
+    .forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('lic-tipo').value='Antivirus';
+  document.getElementById('lic-moneda').value='PEN';
+  document.getElementById('lic-categoria').value='COTIZACION ACTIVA';
+  document.getElementById('lic-estado-orden').value='Cotizacion';
+  // Build cross-client equipment selector
+  let eqSel=document.getElementById('lic-eq-wrap');
+  if(!eqSel){
+    eqSel=document.createElement('div');
+    eqSel.id='lic-eq-wrap';
+    eqSel.className='form-group full';
+    document.querySelector('#modal-licencia .form-grid').prepend(eqSel);
+  }
+  // Collect all equipos across all clients
+  const allEqs=[];
+  Object.entries(state.clients).forEach(([cid,c])=>{
+    c.equipos.forEach(eq=>allEqs.push({cid,cname:c.name,eq}));
+  });
+  const preselect=eqId||'';
+  eqSel.innerHTML=`
+    <label style="display:flex;justify-content:space-between;align-items:center">
+      <span>Equipo</span>
+      <span style="font-size:.7rem;color:var(--accent);cursor:pointer" onclick="closeModal('modal-licencia');openNewEquipoModal()">＋ Crear nuevo equipo</span>
+    </label>
+    <div style="position:relative">
+      <input id="lic-eq-filter" placeholder="🔍 Buscar equipo…" oninput="filtrarEqSelector(this.value)"
+        style="width:100%;padding:7px 10px;border:1px solid var(--border2);border-radius:7px 7px 0 0;font-size:.82rem;background:var(--white);color:var(--text);outline:none;box-sizing:border-box">
+      <select id="lic-eq-sel" size="5"
+        style="width:100%;border:1px solid var(--border2);border-top:none;border-radius:0 0 7px 7px;font-size:.82rem;background:var(--white);color:var(--text);padding:4px">
+        ${allEqs.map(({cid,cname,eq})=>`<option value="${eq._id}|${cid}" ${eq._id===preselect?'selected':''}>
+          ${esc(eq.HOSTNAME||eq.MODELO||'—')} · ${esc(eq.AREA||'')} · ${esc(eq.USUARIO||'')} [${esc(cname)}]
+        </option>`).join('')}
+      </select>
+    </div>`;
+  eqSel.style.display='';
+  openModal('modal-licencia');
+}
+function filtrarEqSelector(q){
+  const f=q.toLowerCase();
+  const sel=document.getElementById('lic-eq-sel');
+  if(!sel) return;
+  Array.from(sel.options).forEach(opt=>{
+    opt.style.display=opt.text.toLowerCase().includes(f)?'':'none';
+  });
+}
+function editLicencia(clientId, eqId, licId){
+  const c=state.clients[clientId];if(!c)return;
+  const eq=c.equipos.find(e=>e._id===eqId);if(!eq)return;
+  const lic=(eq.licencias||[]).find(l=>l.id===licId);if(!lic)return;
+  state.licEditing={clientId,eqId,licId};
+  document.getElementById('lic-modal-title').textContent='Editar licencia';
+  // Build selector first (same as openAddLicencia)
+  openAddLicencia(clientId, eqId);
+  // Wait for modal to render then populate fields
+  setTimeout(()=>{
+    document.getElementById('lic-tipo').value=lic.tipo||'Antivirus';
+    document.getElementById('lic-pedido').value=lic.pedido||'';
+    document.getElementById('lic-producto').value=lic.producto||'';
+    document.getElementById('lic-serial').value=lic.serial||'';
+    document.getElementById('lic-version').value=lic.version||'';
+    document.getElementById('lic-fecha-inicio').value=lic.fechaInicio||'';
+    document.getElementById('lic-fecha-fin').value=lic.fechaFin||'';
+    document.getElementById('lic-costo').value=lic.costo||'';
+    document.getElementById('lic-moneda').value=lic.moneda||'PEN';
+    document.getElementById('lic-categoria').value=lic.categoria||'COTIZACION ACTIVA';
+    document.getElementById('lic-estado-orden').value=lic.estadoOrden||'Cotizacion';
+    document.getElementById('lic-proveedor').value=lic.proveedor||'';
+    document.getElementById('lic-obs').value=lic.obs||'';
+    state.licEditing={clientId,eqId,licId};
+    document.getElementById('lic-modal-title').textContent='Editar licencia';
+  },50);
+}
+function guardarLicencia(){
+  const {eqId,licId}=state.licEditing||{};
+  // Get eq and client from selector (format: "eqId|clientId") or from editing context
+  const selEl=document.getElementById('lic-eq-sel');
+  let finalEqId=eqId, finalClientId=state.licEditing?.clientId;
+  if(selEl&&selEl.value){
+    const parts=selEl.value.split('|');
+    finalEqId=parts[0]; finalClientId=parts[1]||finalClientId;
+  }
+  const c=state.clients[finalClientId];
+  if(!c){toast('Selecciona un equipo','error');return;}
+  const eq=c.equipos.find(e=>e._id===finalEqId);
+  if(!eq){toast('Equipo no encontrado','error');return;}
+  if(!eq.licencias) eq.licencias=[];
+  const data={
+    id:licId||'lic_'+Date.now(),
+    pedido:document.getElementById('lic-pedido').value.trim(),
+    tipo:document.getElementById('lic-tipo').value,
+    producto:document.getElementById('lic-producto').value.trim(),
+    serial:document.getElementById('lic-serial').value.trim(),
+    version:document.getElementById('lic-version').value.trim(),
+    fechaInicio:document.getElementById('lic-fecha-inicio').value,
+    fechaFin:document.getElementById('lic-fecha-fin').value,
+    costo:document.getElementById('lic-costo').value,
+    moneda:document.getElementById('lic-moneda').value||'PEN',
+    categoria:document.getElementById('lic-categoria').value||'COTIZACION ACTIVA',
+    estadoOrden:document.getElementById('lic-estado-orden').value||'Cotizacion',
+    proveedor:document.getElementById('lic-proveedor').value.trim(),
+    obs:document.getElementById('lic-obs').value.trim(),
+  };
+  if(licId){
+    const idx=eq.licencias.findIndex(l=>l.id===licId);
+    if(idx>=0) eq.licencias[idx]=data; else eq.licencias.push(data);
+  } else { eq.licencias.push(data); }
+  save();
+  closeModal('modal-licencia');
+  toast(licId?'Licencia actualizada':'Licencia agregada','success');
+  if(state.todosMode&&state.todosTab==='licencias') renderTodosLicencias();
+  if(state.todosMode&&state.todosTab==='equipos') renderTodosEquipos(state.todosFilterClient);
+}
+function eliminarLicencia(clientId,eqId,licId){
+  const c=state.clients[clientId];if(!c)return;
+  const eq=c.equipos.find(e=>e._id===eqId);if(!eq)return;
+  eq.licencias=(eq.licencias||[]).filter(l=>l.id!==licId);
+  save();toast('Licencia eliminada','success');
+  if(state.todosMode) renderTodosLicencias();
+}
+function confirmarEliminarLicencia(clientId,eqId,licId,nombre){
+  resetConfirmarModal();
+  const tituloEl=document.getElementById('confirmar-titulo');
+  const textoEl=document.getElementById('confirmar-texto');
+  if(tituloEl) tituloEl.textContent='Eliminar licencia';
+  if(textoEl) textoEl.textContent='¿Estás seguro de que quieres eliminar esta licencia?';
+  document.getElementById('confirmar-nombre').textContent=nombre||'esta licencia';
+  document.getElementById('btn-confirmar-ok').onclick=function(){
+    eliminarLicencia(clientId,eqId,licId);
+    closeModal('modal-confirmar');
+    resetConfirmarModal();
+  };
+  openModal('modal-confirmar');
+}
+
+// ════════════ IMPORTAR CSV DE LICENCIAS ════════════
+function importarLicenciasCSV(){
+  var inp=document.createElement('input');
+  inp.type='file';inp.accept='.csv,text/csv';
+  inp.onchange=function(e){
+    var file=e.target.files[0];if(!file)return;
+    var reader=new FileReader();
+    reader.onload=function(ev){
+      var text=ev.target.result;
+      // ── 1. Eliminar BOM UTF-8 si existe
+      if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
+
+      // ── 2. Detectar separador: ; (Excel Europa/Peru) o , (CSV estandar)
+      var firstLine=text.split(/\r?\n/)[0]||'';
+      var sep=firstLine.indexOf(';')>=0?';':',';
+
+      // ── 3. Parser RFC-4180 robusto (soporta comillas dobles, saltos dentro de celdas)
+      function parseRow(line){
+        var result=[],cur='',inQ=false;
+        for(var i=0;i<line.length;i++){
+          var ch=line[i];
+          if(ch==='"'){
+            if(inQ&&i+1<line.length&&line[i+1]==='"'){cur+='"';i++;}
+            else inQ=!inQ;
+          } else if(ch===sep&&!inQ){
+            result.push(cur.trim());cur='';
+          } else {
+            cur+=ch;
+          }
+        }
+        result.push(cur.trim());
+        return result;
+      }
+
+      var lines=text.split(/\r?\n/).filter(function(l){return l.trim();});
+      if(lines.length<2){toast('CSV vacio o sin datos','error');return;}
+
+      // ── 4. Mapeo flexible de headers (case-insensitive + alias)
+      var rawHeaders=parseRow(lines[0]);
+      var headers=rawHeaders.map(function(h){return h.trim().replace(/^"+|"+$/g,'').toUpperCase();});
+
+      // Buscar columna con multiples alias posibles
+      function col(){
+        var aliases=Array.prototype.slice.call(arguments);
+        for(var i=0;i<aliases.length;i++){
+          var idx=headers.indexOf(aliases[i].toUpperCase());
+          if(idx>=0) return idx;
+        }
+        return -1;
+      }
+      var COL={
+        PEDIDO:       col('PEDIDO','PEDIDO_NRO','NRO_PEDIDO','ORDEN','ORDER'),
+        FECHA_INICIO: col('FECHA_INICIO','FECHA INICIO','FECHA_EMISION','FECHA EMISION','FECHA','DATE_START','FECHA_PEDIDO'),
+        CLIENTE:      col('CLIENTE','RAZON_SOCIAL','RAZON SOCIAL','CUSTOMER','NOMBRE_CLIENTE','NOMBRE CLIENTE','EMPRESA'),
+        PRODUCTO:     col('PRODUCTO_DESCRIPCION','PRODUCTO DESCRIPCION','PRODUCTO','DESCRIPCION','DESCRIPTION','DETALLE'),
+        TIPO:         col('TIPO_LICENCIA','TIPO LICENCIA','TIPO','TYPE','CATEGORIA_PRODUCTO'),
+        EQUIPO:       col('EQUIPO_ASIGNADO','EQUIPO ASIGNADO','EQUIPO','HOSTNAME','DISPOSITIVO'),
+        USUARIO:      col('USUARIO_AREA','USUARIO AREA','USUARIO','USER','RESPONSABLE'),
+        AREA:         col('AREA','DEPARTAMENTO','DEPARTMENT'),
+        FECHA_FIN:    col('FECHA_VENCIMIENTO','FECHA VENCIMIENTO','VENCIMIENTO','EXPIRY','FECHA_EXPIRACION','FECHA FIN'),
+        COSTO:        col('COSTO','TOTAL','PRECIO','AMOUNT','VALOR','IMPORTE'),
+        MONEDA:       col('MONEDA','CURRENCY','DIVISA'),
+        CATEGORIA:    col('CATEGORIA','CATEGORY','TIPO_DOC','TIPO DOC','TIPO_DOCUMENTO'),
+        ESTADO_ORDEN: col('ESTADO_ORDEN','ESTADO ORDEN','ESTADO','STATUS','TIPO_ESTADO','ESTADO_LICENCIA'),
+        PROVEEDOR:    col('PROVEEDOR','SUPPLIER','MARCA','BRAND','VENDOR'),
+      };
+
+      // ── 5. Normalizar fecha (acepta DD/MM/YYYY HH:MM, YYYY-MM-DD, DD/MM/YYYY)
+      function normalizarFecha(raw){
+        if(!raw||!raw.trim()) return '';
+        raw=raw.trim();
+        // Si ya es YYYY-MM-DD
+        if(/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0,10);
+        // DD/MM/YYYY o DD/MM/YYYY HH:MM
+        var m=raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+        if(m) return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+        return '';
+      }
+
+      // ── 6. Inferir tipo de licencia desde descripcion del producto
+      function inferirTipo(prod){
+        var p=(prod||'').toLowerCase();
+        if(/eset|nod32|kaspersky|bitdefender|avast|norton|panda|antivirus|edr|endpoint/.test(p)) return 'Antivirus';
+        if(/microsoft 365|office 365|m365|o365/.test(p)) return 'Microsoft 365';
+        if(/office 20[0-9]{2}|suite ofim|word|excel|powerpoint/.test(p)) return 'Office 365';
+        if(/windows server/.test(p)) return 'Windows Server';
+        if(/windows 10|windows 11|windows pro/.test(p)) return 'Windows';
+        if(/acrobat|adobe/.test(p)) return 'Adobe';
+        if(/backup|respaldo|veeam|acronis/.test(p)) return 'Backup / Nube';
+        if(/ssl|dominio|hosting/.test(p)) return 'Dominio / SSL';
+        if(/concar|siscont|contable|erp|crm|netsuite/.test(p)) return 'Software contable';
+        return 'Otro';
+      }
+
+      // ── 7. Normalizar costo (extrae numero de "S/ 433.3", "$ 23.46", "1.085,6")
+      function normalizarCosto(raw){
+        if(!raw||!raw.trim()) return '';
+        var s=raw.trim().replace(/[Ss][\/]\s*/,'').replace(/\$\s*/,'').replace(/,(?=\d{3})/g,'').replace(',','.');
+        var n=parseFloat(s);
+        return isNaN(n)?'':String(n);
+      }
+
+      // ── 8. Indices de clientes existentes para busqueda rapida (normalizado)
+      var clienteIndex={};
+      Object.keys(state.clients).forEach(function(id){
+        var norm=state.clients[id].name.trim().toLowerCase().replace(/\s+/g,' ');
+        clienteIndex[norm]=id;
+      });
+
+      var importados=0,clientesCreados=0,equiposCreados=0;
+
+      lines.slice(1).forEach(function(line,lineIdx){
+        if(!line.trim()) return;
+        var cols=parseRow(line);
+
+        // Obtener campos clave
+        function get(key){return COL[key]>=0&&cols[COL[key]]?cols[COL[key]].replace(/^"+|"+$/g,'').trim():'';}
+
+        var clienteRaw=get('CLIENTE');
+        if(!clienteRaw) return; // fila sin cliente = saltar
+
+        var clienteNorm=clienteRaw.toLowerCase().replace(/\s+/g,' ').trim();
+
+        // ── Buscar cliente (exacto normalizado)
+        var clientId=clienteIndex[clienteNorm]||null;
+
+        // Si no existe → CREAR cliente automaticamente
+        if(!clientId){
+          clientId='c_csv_'+Date.now()+'_'+lineIdx;
+          state.clients[clientId]={
+            name:clienteRaw,
+            equipos:[],resumen:{},historial:[],
+            creds:{ruc:'',pinHash:''},
+            piezasCustom:[],snapshots:[],criticidad:{}
+          };
+          clienteIndex[clienteNorm]=clientId; // registrar en indice
+          clientesCreados++;
+        }
+
+        var c=state.clients[clientId];
+
+        // ── Equipo: buscar o crear
+        var equipoHostname=get('EQUIPO')||'(Sin equipo)';
+        var eq=null;
+        if(c.equipos.length>0){
+          var hn=equipoHostname.toLowerCase();
+          eq=c.equipos.find(function(e){
+            return (e.HOSTNAME||e.MODELO||'').toLowerCase()===hn;
+          })||null;
+        }
+        if(!eq){
+          var ua=get('USUARIO');var area=get('AREA');
+          // Si USUARIO_AREA tiene formato "usuario / area" separarlo
+          if(!ua&&!area){
+            var raw_ua=get('USUARIO');
+            var parts=(raw_ua||'').split('/');
+            ua=parts[0]?parts[0].trim():'';
+            area=parts[1]?parts[1].trim():'';
+          }
+          eq={
+            _id:'eq_csv_'+Date.now()+'_'+lineIdx+'_'+Math.random().toString(36).slice(2,6),
+            HOSTNAME:equipoHostname,MODELO:equipoHostname,
+            TIPO:'',AREA:area||'',USUARIO:ua||'',
+            MARCA:'',SERIE:'',SISTEMA:'',licencias:[]
+          };
+          c.equipos.push(eq);
+          equiposCreados++;
+        }
+        if(!eq.licencias) eq.licencias=[];
+
+        // ── Extraer USUARIO y AREA desde USUARIO_AREA si es una sola columna
+        var rawUsuarioArea=COL.USUARIO>=0&&cols[COL.USUARIO]?cols[COL.USUARIO].trim():'';
+        var usuarioParts=rawUsuarioArea.split(/\s*[\/|]\s*/);
+        var usuario=usuarioParts[0]||'';
+        var area=usuarioParts[1]||get('AREA')||'';
+
+        // ── Actualizar equipo con datos del CSV si estaban vacios
+        if(!eq.USUARIO&&usuario) eq.USUARIO=usuario;
+        if(!eq.AREA&&area) eq.AREA=area;
+
+        // ── Producto e inferencia de tipo
+        var producto=get('PRODUCTO');
+        var tipo=get('TIPO')||inferirTipo(producto);
+
+        // ── Fechas
+        var fechaInicio=normalizarFecha(get('FECHA_INICIO'));
+        var fechaFinCSV=normalizarFecha(get('FECHA_FIN'));
+        // Si el CSV no trae fecha de vencimiento, calcular fechaInicio + 365 días
+        var fechaFin=fechaFinCSV;
+        if(!fechaFin&&fechaInicio){
+          var d=new Date(fechaInicio+'T00:00:00');
+          d.setDate(d.getDate()+365);
+          fechaFin=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+        }
+
+        // ── Costo y moneda
+        var costoRaw=get('COSTO');
+        var monedaRaw=get('MONEDA');
+        // Si no hay columna MONEDA, intentar inferir del campo COSTO ("S/" → PEN, "$" → USD)
+        if(!monedaRaw){
+          if(/[Ss][\/]/.test(costoRaw)) monedaRaw='PEN';
+          else if(/\$/.test(costoRaw)) monedaRaw='USD';
+          else monedaRaw='PEN';
+        }
+        var costo=normalizarCosto(costoRaw);
+
+        // ── Categoria: limpiar COTIZACION ACTIVA vs COTIZACIÓN ACTIVA
+        var categoria=(get('CATEGORIA')||'').trim();
+
+        // ── Estado orden
+        var estadoOrden=(get('ESTADO_ORDEN')||'').trim();
+
+        // ── Proveedor: inferir de producto si no hay columna
+        var proveedor=get('PROVEEDOR');
+        if(!proveedor){
+          var pd=(producto||'').toLowerCase();
+          if(/microsoft|office|windows|m365/.test(pd)) proveedor='Microsoft';
+          else if(/eset|nod32/.test(pd)) proveedor='ESET';
+          else if(/kaspersky/.test(pd)) proveedor='Kaspersky';
+          else if(/adobe|acrobat/.test(pd)) proveedor='Adobe';
+          else if(/google/.test(pd)) proveedor='Google';
+        }
+
+        var licData={
+          id:'lic_csv_'+Date.now()+'_'+lineIdx+'_'+Math.random().toString(36).slice(2,6),
+          pedido:get('PEDIDO'),
+          fechaInicio:fechaInicio,
+          tipo:tipo,
+          producto:producto,
+          serial:'',
+          version:'',
+          fechaFin:fechaFin,
+          costo:costo,
+          moneda:monedaRaw.toUpperCase()==='USD'?'USD':'PEN',
+          categoria:categoria,
+          estadoOrden:estadoOrden,
+          proveedor:proveedor,
+          obs:'',
+        };
+
+        eq.licencias.push(licData);
+        importados++;
+      });
+
+      save();
+      renderClients();
+      if(state.todosMode){
+        if(state.todosTab==='licencias') renderTodosLicencias();
+        else if(state.todosTab==='equipos') renderTodosEquipos(state.todosFilterClient);
+        else if(state.todosTab==='analisis') renderAnalisisLicencias();
+      }
+      var msg='Importacion completa: '+importados+' licencias';
+      if(clientesCreados) msg+=' · '+clientesCreados+' cliente'+(clientesCreados!==1?'s':'')+' creados';
+      if(equiposCreados) msg+=' · '+equiposCreados+' equipo'+(equiposCreados!==1?'s':'')+' nuevos';
+      toast(msg,'success');
+    };
+    reader.readAsText(file,'UTF-8');
+  };
+  inp.click();
+}
+
+// ════════════ EXPORTAR HTML DE LICENCIAS ════════════
+function exportarLicenciasHTML(){
+  var ids=Object.keys(state.clients);
+  var todas=[];
+  ids.forEach(function(id){
+    var c=state.clients[id];
+    c.equipos.forEach(function(eq){
+      (eq.licencias||[]).forEach(function(lic){
+        var dias=diasRestantes(lic.fechaFin);
+        var est=licEstado(dias);
+        todas.push({lic:lic,eq:eq,clientId:id,clientName:c.name,dias:dias,est:est});
+      });
+    });
+  });
+  var fecha=new Date().toLocaleDateString('es-PE',{day:'2-digit',month:'long',year:'numeric'});
+  var OCOLOR={'Ordenes de venta':'#16a34a','Cotizacion':'#2563eb','Perdido':'#dc2626'};
+  var rows=todas.map(function(o,i){
+    var bg=i%2===0?'#fff':'#f8fafc';
+    var dc=o.dias===null?'#64748b':o.dias<0?'#dc2626':o.dias<=30?'#ea580c':'#16a34a';
+    var diasTxt=o.dias===null?'Sin fecha':o.dias<0?'Hace '+Math.abs(o.dias)+'d':o.dias===0?'HOY':o.dias+'d';
+    var ocol=OCOLOR[o.lic.estadoOrden||'']||'#2563eb';
+    return '<tr style="background:'+bg+'">'
+      +'<td style="padding:8px 12px;font-family:monospace;font-size:.78rem;color:#64748b">'+escH(o.lic.pedido||'-')+'</td>'
+      +'<td style="padding:8px 12px;font-size:.78rem">'+escH(o.lic.fechaInicio||'-')+'</td>'
+      +'<td style="padding:8px 12px;font-weight:600;font-size:.8rem">'+escH(o.clientName)+'</td>'
+      +'<td style="padding:8px 12px;font-size:.78rem;max-width:260px">'+escH(o.lic.producto||'-')+'</td>'
+      +'<td style="padding:8px 12px;font-size:.76rem;color:#64748b">'+escH(o.lic.tipo||'-')+'</td>'
+      +'<td style="padding:8px 12px;font-family:monospace;font-size:.75rem">'+escH(o.eq.HOSTNAME||o.eq.MODELO||'-')+'</td>'
+      +'<td style="padding:8px 12px;font-size:.76rem;color:#64748b">'+escH((o.eq.USUARIO||'-')+' / '+(o.eq.AREA||'-'))+'</td>'
+      +'<td style="padding:8px 12px;font-size:.76rem">'+escH(o.lic.fechaFin||'-')+'</td>'
+      +'<td style="padding:8px 12px;font-weight:700;font-size:.8rem;color:'+dc+'">'+diasTxt+'</td>'
+      +'<td style="padding:8px 12px;font-weight:600;font-size:.8rem;text-align:right">'+escH(o.lic.costo||'0')+'</td>'
+      +'<td style="padding:8px 12px;font-size:.76rem;text-align:center">'+escH(o.lic.moneda||'PEN')+'</td>'
+      +'<td style="padding:8px 12px;font-size:.74rem;color:#64748b">'+escH(o.lic.categoria||'-')+'</td>'
+      +'<td style="padding:8px 12px"><span style="font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:4px;color:'+ocol+';background:'+ocol+'18">'+escH(o.lic.estadoOrden||'-')+'</span></td>'
+      +'<td style="padding:8px 12px"><span style="font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:4px;color:'+o.est.color+';background:'+o.est.bg+'">'+o.est.icon+' '+o.est.label+'</span></td>'
+      +'</tr>';
+  }).join('');
+  var totalPEN=0,totalUSD=0;
+  todas.forEach(function(o){if(o.lic.moneda==='USD')totalUSD+=parseFloat(o.lic.costo||0);else totalPEN+=parseFloat(o.lic.costo||0);});
+  function escH(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  var htm='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Reporte de Licencias - COSEINCO</title>'
+    +'<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f8fafc;color:#0f172a;padding:32px}'
+    +'.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;padding-bottom:20px;border-bottom:2px solid #e2e8f0}'
+    +'.logo{font-size:1.4rem;font-weight:800;color:#2563eb}.sub{font-size:.82rem;color:#64748b;margin-top:4px}'
+    +'.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}'
+    +'.kpi{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px;border-top:3px solid var(--c)}'
+    +'.kpi .label{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8}'
+    +'.kpi .val{font-size:1.6rem;font-weight:800;color:var(--c);margin-top:4px}'
+    +'.wrap{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden}'
+    +'table{width:100%;border-collapse:collapse;font-size:.78rem}'
+    +'thead tr{background:#f1f5f9}th{padding:10px 12px;text-align:left;font-weight:700;font-size:.67rem;text-transform:uppercase;letter-spacing:.5px;color:#64748b;white-space:nowrap;border-bottom:2px solid #e2e8f0}'
+    +'tbody tr:hover{background:#f0f9ff!important}td{border-bottom:1px solid #f1f5f9}'
+    +'.footer{margin-top:20px;text-align:center;font-size:.74rem;color:#94a3b8}</style></head><body>'
+    +'<div class="header"><div><div class="logo">COSEINCO SA &mdash; Reporte de Licencias</div><div class="sub">Generado el '+fecha+' &middot; '+todas.length+' licencias registradas</div></div></div>'
+    +'<div class="kpis">'
+    +'<div class="kpi" style="--c:#2563eb"><div class="label">Total licencias</div><div class="val">'+todas.length+'</div></div>'
+    +'<div class="kpi" style="--c:#dc2626"><div class="label">Vencidas</div><div class="val">'+todas.filter(function(o){return o.dias!==null&&o.dias<0;}).length+'</div></div>'
+    +'<div class="kpi" style="--c:#7c3aed"><div class="label">Total Soles</div><div class="val">S/ '+totalPEN.toFixed(2)+'</div></div>'
+    +'<div class="kpi" style="--c:#0891b2"><div class="label">Total USD</div><div class="val">$ '+totalUSD.toFixed(2)+'</div></div>'
+    +'</div>'
+    +'<div class="wrap"><table><thead><tr>'
+    +'<th>Pedido</th><th>Fecha Inicio</th><th>Cliente</th><th>Producto / Descripcion</th><th>Tipo</th>'
+    +'<th>Equipo</th><th>Usuario / Area</th><th>Vencimiento</th><th>Dias</th><th>Costo</th>'
+    +'<th>Moneda</th><th>Categoria</th><th>Orden</th><th>Estado</th>'
+    +'</tr></thead><tbody>'+rows+'</tbody></table></div>'
+    +'<div class="footer">COSEINCO SA &middot; Inventario IT 2026 &middot; Documento generado el '+fecha+'</div>'
+    +'</body></html>';
+  var blob=new Blob([htm],{type:'text/html;charset=utf-8'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url;a.download='licencias_coseinco_'+new Date().toISOString().slice(0,10)+'.html';
+  a.click();URL.revokeObjectURL(url);
+  toast('Informe HTML exportado ('+todas.length+' licencias)','success');
+}
+
+// ════════════ ANALISIS E INFORMES ════════════
+function renderAnalisisLicencias(){
+  var el=document.getElementById('todos-analisis');
+  var ids=Object.keys(state.clients);
+  var todas=[];
+  ids.forEach(function(id){
+    var c=state.clients[id];
+    c.equipos.forEach(function(eq){(eq.licencias||[]).forEach(function(lic){todas.push({lic:lic,eq:eq,clientId:id,clientName:c.name});});});
+  });
+  if(!todas.length){el.innerHTML='<div style="text-align:center;padding:48px;color:var(--text3)"><div style="font-size:2rem;margin-bottom:8px">📊</div>Sin licencias para analizar. Agrega licencias para ver el dashboard.</div>';return;}
+  var COLORS=['#2563eb','#7c3aed','#db2777','#ea580c','#d97706','#16a34a','#0891b2','#4f46e5'];
+  // 1 - Costos por cliente
+  var porCliente={};
+  ids.forEach(function(id){porCliente[id]={name:state.clients[id].name,pen:0,usd:0,total:0};});
+  todas.forEach(function(o){var c=parseFloat(o.lic.costo||0);if(o.lic.moneda==='USD')porCliente[o.clientId].usd+=c;else porCliente[o.clientId].pen+=c;porCliente[o.clientId].total+=c;});
+  var cliSort=Object.values(porCliente).filter(function(c){return c.total>0;}).sort(function(a,b){return b.total-a.total;}).slice(0,8);
+  var maxC=cliSort[0]?cliSort[0].total:1;
+  var barChart1=cliSort.map(function(c,i){
+    return '<div style="margin-bottom:9px"><div style="display:flex;justify-content:space-between;font-size:.74rem;margin-bottom:3px"><span style="color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%">'+esc(c.name)+'</span><span style="color:var(--text2)">'+(c.pen>0?'S/ '+c.pen.toFixed(0):'')+(c.pen>0&&c.usd>0?' + ':' ')+(c.usd>0?'$'+c.usd.toFixed(0):'')+'</span></div><div style="background:var(--bg);border-radius:4px;height:14px;overflow:hidden"><div style="width:'+((c.total/maxC)*100).toFixed(1)+'%;height:100%;background:'+COLORS[i%COLORS.length]+';border-radius:4px"></div></div></div>';
+  }).join('');
+  // 2 - Embudo renovaciones
+  var venc=0,crit15=0,warn30=0,ok90=0,masde90=0;
+  todas.forEach(function(o){var d=diasRestantes(o.lic.fechaFin);if(d===null)return;if(d<0)venc++;else if(d<=15)crit15++;else if(d<=30)warn30++;else if(d<=90)ok90++;else masde90++;});
+  var embudo=[{l:'Vencidas',v:venc,col:'#dc2626',bg:'#fef2f2'},{l:'Criticas &lt;=15d',v:crit15,col:'#ea580c',bg:'#fff7ed'},{l:'Advertencia 16-30d',v:warn30,col:'#d97706',bg:'#fffbeb'},{l:'En tiempo 31-90d',v:ok90,col:'#16a34a',bg:'#f0fdf4'},{l:'Largo plazo &gt;90d',v:masde90,col:'#2563eb',bg:'#eff6ff'}];
+  var maxE=Math.max.apply(null,embudo.map(function(e){return e.v;}).concat([1]));
+  var embudoHTML=embudo.map(function(e){return '<div style="display:flex;align-items:center;gap:10px;padding:8px;background:'+e.bg+';border-radius:7px;margin-bottom:5px"><div style="width:5px;height:36px;background:'+e.col+';border-radius:3px;flex-shrink:0"></div><div style="flex:1"><div style="font-size:.74rem;font-weight:600;color:var(--text);margin-bottom:3px">'+e.l+'</div><div style="background:var(--white);border-radius:4px;height:8px;overflow:hidden"><div style="width:'+((e.v/maxE)*100).toFixed(1)+'%;height:100%;background:'+e.col+';border-radius:4px"></div></div></div><div style="font-size:1.2rem;font-weight:800;color:'+e.col+';min-width:28px;text-align:right">'+e.v+'</div></div>';}).join('');
+  // 3 - Donut por tipo
+  var porTipo={};
+  todas.forEach(function(o){var k=o.lic.tipo||'Otro';porTipo[k]=(porTipo[k]||0)+1;});
+  var tipoSort=Object.entries(porTipo).sort(function(a,b){return b[1]-a[1];});
+  var totalT=tipoSort.reduce(function(s,e){return s+e[1];},0)||1;
+  var R=50,stroke=18,C2=2*Math.PI*R,off=0;
+  var segs=tipoSort.map(function(e,i){var pct=e[1]/totalT;var dash=pct*C2;var seg='<circle cx="60" cy="60" r="'+R+'" fill="none" stroke="'+COLORS[i%COLORS.length]+'" stroke-width="'+stroke+'" stroke-dasharray="'+dash.toFixed(2)+' '+(C2-dash).toFixed(2)+'" stroke-dashoffset="'+(C2-off).toFixed(2)+'" transform="rotate(-90 60 60)"/>';off+=dash;return seg;}).join('');
+  var donutHTML='<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><svg width="120" height="120" style="flex-shrink:0">'+segs+'</svg><div>'+tipoSort.map(function(e,i){return '<div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;font-size:.73rem"><span style="width:9px;height:9px;border-radius:50%;background:'+COLORS[i%COLORS.length]+';flex-shrink:0"></span><span style="color:var(--text)">'+esc(e[0])+'</span><span style="margin-left:auto;font-weight:700;color:var(--text2);padding-left:8px">'+((e[1]/totalT)*100).toFixed(0)+'%</span></div>';}).join('')+'</div></div>';
+  // 4 - Conversion ordenes
+  var porOrden={};
+  todas.forEach(function(o){var k=o.lic.estadoOrden||'Sin estado';porOrden[k]=(porOrden[k]||0)+1;});
+  var ordenSort=Object.entries(porOrden).sort(function(a,b){return b[1]-a[1];});
+  var maxO=Math.max.apply(null,ordenSort.map(function(e){return e[1];}).concat([1]));
+  var OCOLOR={'Ordenes de venta':'#16a34a','Cotizacion':'#2563eb','Perdido':'#dc2626'};
+  var convHTML=ordenSort.map(function(e,i){var col=OCOLOR[e[0]]||COLORS[i%COLORS.length];return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><div style="font-size:.75rem;color:var(--text);min-width:140px;font-weight:600">'+esc(e[0])+'</div><div style="flex:1;background:var(--bg);border-radius:5px;height:22px;overflow:hidden"><div style="width:'+((e[1]/maxO)*100).toFixed(1)+'%;height:100%;background:'+col+';border-radius:5px;display:flex;align-items:center;padding-left:6px"><span style="font-size:.7rem;font-weight:700;color:#fff">'+e[1]+'</span></div></div><div style="font-size:.78rem;font-weight:800;color:'+col+';min-width:30px;text-align:right">'+((e[1]/totalT)*100).toFixed(0)+'%</div></div>';}).join('');
+  // Totales moneda
+  var tPEN=0,tUSD=0;
+  todas.forEach(function(o){if(o.lic.moneda==='USD')tUSD+=parseFloat(o.lic.costo||0);else tPEN+=parseFloat(o.lic.costo||0);});
+  function card(t,b){return '<div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.06)"><div style="font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text3);margin-bottom:14px">'+t+'</div>'+b+'</div>';}
+  el.innerHTML='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">'
+    +'<div style="background:var(--white);border:1px solid var(--border);border-top:3px solid #7c3aed;border-radius:10px;padding:14px"><div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3)">Total en Soles</div><div style="font-size:1.5rem;font-weight:800;color:#7c3aed;margin-top:4px">S/ '+tPEN.toFixed(2)+'</div></div>'
+    +'<div style="background:var(--white);border:1px solid var(--border);border-top:3px solid #2563eb;border-radius:10px;padding:14px"><div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3)">Total en Dolares</div><div style="font-size:1.5rem;font-weight:800;color:#2563eb;margin-top:4px">$ '+tUSD.toFixed(2)+'</div></div>'
+    +'<div style="background:var(--white);border:1px solid var(--border);border-top:3px solid #16a34a;border-radius:10px;padding:14px"><div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3)">Total licencias</div><div style="font-size:1.5rem;font-weight:800;color:#16a34a;margin-top:4px">'+todas.length+'</div></div>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'
+    +card('📊 Costos por Cliente',barChart1)
+    +card('🚨 Embudo de Renovaciones',embudoHTML)
+    +card('🍩 Desglose por Tipo de Licencia',donutHTML)
+    +card('📈 Estado de Ordenes',convHTML)
+    +'</div>';
+}
 function addClientPrompt(){
   const input=document.getElementById('new-client-name');
   if(input) input.value='';
@@ -906,7 +2028,7 @@ function confirmarNuevoCliente(){
   const n=(input?.value||'').trim();
   if(!n){ input?.focus(); return; }
   const id='c_'+Date.now();
-  state.clients[id]={name:n,equipos:[],resumen:{},historial:[],creds:{ruc:'',pinHash:''},piezasCustom:[]};
+  state.clients[id]={name:n,equipos:[],resumen:{},historial:[],creds:{ruc:'',pinHash:''},piezasCustom:[],snapshots:[],criticidad:{}};
   save();
   closeModal('modal-new-client');
   selectClient(id);
@@ -936,7 +2058,29 @@ function renderGaleria(){
   const cont=document.getElementById('cards-container');
   if(!state.activeClient){cont.innerHTML=emptyHTML('👈','Selecciona un cliente','Elige uno del panel lateral o crea uno nuevo');return;}
   if(!eqs.length){cont.innerHTML=emptyHTML('📦','Sin equipos','Importa un CSV o agrega equipos manualmente');return;}
-  cont.innerHTML=eqs.map(eq=>cardHTML(eq)).join('');
+
+  // Agrupar por área, ordenadas alfabéticamente; equipos sin área al final
+  const grupos={};
+  eqs.forEach(eq=>{
+    const area=eq.AREA||'Sin área';
+    if(!grupos[area]) grupos[area]=[];
+    grupos[area].push(eq);
+  });
+  const areas=Object.keys(grupos).sort((a,b)=>{
+    if(a==='Sin área') return 1;
+    if(b==='Sin área') return -1;
+    return a.localeCompare(b,'es');
+  });
+
+  cont.innerHTML=areas.map(area=>{
+    const count=grupos[area].length;
+    return `<div style="grid-column:1/-1;display:flex;align-items:center;gap:12px;margin:10px 0 4px">
+      <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text2)">${esc(area)}</div>
+      <span style="font-size:.7rem;background:var(--bg);border:1px solid var(--border2);color:var(--text3);border-radius:10px;padding:1px 8px">${count} equipo${count!==1?'s':''}</span>
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+    </div>`
+    + grupos[area].map(eq=>cardHTML(eq)).join('');
+  }).join('');
 }
 function cardHTML(eq){
   const t=(eq.TIPO||'otro').toLowerCase();
@@ -1101,6 +2245,18 @@ function verEquipo(id){
       <div style="padding:7px 10px;background:var(--bg);border-radius:7px;font-size:.84rem">${esc(eq.OBSERVACIONES||'—')}</div></div>
   </div>`;
   document.getElementById('btn-ver-edit').onclick=()=>{closeModal('modal-ver');editEquipo(id);};
+  document.getElementById('btn-ver-lic').onclick=()=>{
+    closeModal('modal-ver');
+    const cid=state.activeClient;
+    state.licEditing={clientId:cid,eqId:id,licId:null};
+    if(state.todosMode){
+      // Find which client owns this eq
+      for(const [cid2,cl] of Object.entries(state.clients)){
+        if(cl.equipos.find(e=>e._id===id)){state.licEditing.clientId=cid2;break;}
+      }
+    }
+    openAddLicencia(state.licEditing.clientId,id);
+  };
   openModal('modal-ver');
 }
 function verQR(){
@@ -1243,13 +2399,46 @@ function renderResumen(){
     <div class="res-card" style="grid-column:1/-1"><h4>Datos del cliente</h4>${chunk(RESUMEN_FIELDS,0,8)}</div>
     <div class="res-card"><h4>Resumen de equipos</h4>${chunk(RESUMEN_FIELDS,8,12)}</div>
     <div class="res-card"><h4>Infraestructura</h4>${chunk(RESUMEN_FIELDS,12,18)}</div>
-    <div class="res-card"><h4>Perfil Tecnológico de Empresa</h4>${perfilChunk()}</div>`;
+    <div class="res-card"><h4>Perfil Tecnológico de Empresa</h4>${perfilChunk()}</div>
+    ${criticidadAreasHTML()}`;
   const credBox=document.getElementById('cred-box');
   const fnInput=document.getElementById('export-filename');
   if(c){
     credBox.style.display='';
     if(fnInput) fnInput.value=slugify(c.name);
   } else { credBox.style.display='none'; }
+}
+// Configuración de criticidad de negocio por área (#2)
+function criticidadAreasHTML(){
+  const c=getC();if(!c) return '';
+  const areas=[...new Set(getEqs().map(e=>e.AREA).filter(Boolean))].sort();
+  if(!areas.length) return '';
+  const crit=c.criticidad||{};
+  return `<div class="res-card" style="grid-column:1/-1;border-left:4px solid #7c3aed">
+    <h4>🎯 Criticidad de Negocio por Área</h4>
+    <p style="font-size:.76rem;color:var(--text2);margin-bottom:12px">Define qué tan crítica es cada área para la operación. Los equipos con problemas en áreas de <b>criticidad alta</b> se priorizan en el análisis, aunque su puntaje técnico sea menor.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px">
+    ${areas.map(a=>{
+      const val=crit[a]||'media';
+      return `<div style="display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px">
+        <span style="flex:1;font-size:.82rem;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(a)}">${esc(a)}</span>
+        <select onchange="setCriticidad('${esc(a).replace(/'/g,"\\'")}',this.value)" style="background:var(--white);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-size:.78rem;cursor:pointer;color:${CRIT_INFO[val].color};font-weight:600">
+          <option value="alta" ${val==='alta'?'selected':''}>🔴 Alta</option>
+          <option value="media" ${val==='media'?'selected':''}>🟡 Media</option>
+          <option value="baja" ${val==='baja'?'selected':''}>🟢 Baja</option>
+        </select>
+      </div>`;
+    }).join('')}
+    </div>
+  </div>`;
+}
+function setCriticidad(area,nivel){
+  const c=getC();if(!c)return;
+  if(!c.criticidad) c.criticidad={};
+  c.criticidad[area]=nivel;
+  save();
+  renderResumen();
+  toast('Criticidad de "'+area+'": '+CRIT_INFO[nivel].label,'success');
 }
 function slugify(s){return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');}
 function guardarResumen(){
@@ -1414,6 +2603,97 @@ function proyectarCostos(evaluated){
   return {items,totalMin,totalMax};
 }
 function fmtSoles(n){return 'S/ '+n.toLocaleString('es-PE');}
+
+// ══════════ HELPERS: SALUD, SNAPSHOT, RESUMEN EJECUTIVO, CRITICIDAD ══════════
+function calcHealthScore(evaluated){
+  const total=evaluated.length||1;
+  const cc={critical:0,medium:0,low:0,ok:0};
+  evaluated.forEach(e=>cc[e.severity]++);
+  return Math.round(100-((cc.critical*4+cc.medium*2+cc.low*1)/(total*4))*100);
+}
+function registrarSnapshot(score){
+  const c=getC();if(!c)return;
+  if(!c.snapshots) c.snapshots=[];
+  const now=new Date();
+  const ym=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  const idx=c.snapshots.findIndex(s=>s.ym===ym);
+  const fecha=now.toLocaleDateString('es-PE',{day:'2-digit',month:'short',year:'numeric'});
+  if(idx>=0){ c.snapshots[idx].score=score; c.snapshots[idx].fecha=fecha; }
+  else { c.snapshots.push({ym,score,fecha}); }
+  c.snapshots.sort((a,b)=>a.ym<b.ym?-1:1);
+  if(c.snapshots.length>12) c.snapshots=c.snapshots.slice(-12);
+  save();
+}
+function criticidadEquipo(eq){
+  const c=getC();if(!c||!c.criticidad) return 'media';
+  return c.criticidad[eq.AREA||'']||'media';
+}
+const CRIT_PESO={alta:3,media:2,baja:1};
+const CRIT_INFO={alta:{label:'Alta',color:'#dc2626',icon:'🔴'},media:{label:'Media',color:'#d97706',icon:'🟡'},baja:{label:'Baja',color:'#16a34a',icon:'🟢'}};
+
+// Mini-gráfico de línea (sparkline) para la evolución del health score (#3)
+function sparklineHTML(snaps){
+  if(!snaps||snaps.length<2){
+    return '<div style="text-align:center;padding:24px 10px;color:var(--text3);font-size:.82rem">📅 Aún no hay suficiente historial.<br><span style="font-size:.74rem">El primer registro se guarda hoy. Vuelve el próximo mes para ver la tendencia.</span></div>';
+  }
+  const W=280,H=90,pad=8;
+  const scores=snaps.map(s=>s.score);
+  const min=Math.min(...scores,0), max=Math.max(...scores,100);
+  const range=(max-min)||1;
+  const stepX=(W-pad*2)/(snaps.length-1);
+  const pts=snaps.map((s,i)=>{
+    const x=pad+i*stepX;
+    const y=pad+(H-pad*2)*(1-(s.score-min)/range);
+    return [x,y];
+  });
+  const linePath=pts.map((p,i)=>(i===0?'M':'L')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  const areaPath=linePath+' L'+pts[pts.length-1][0].toFixed(1)+' '+(H-pad)+' L'+pts[0][0].toFixed(1)+' '+(H-pad)+' Z';
+  const last=snaps[snaps.length-1], first=snaps[0];
+  const delta=last.score-first.score;
+  const col=delta>0?'#16a34a':delta<0?'#dc2626':'#64748b';
+  return '<svg width="100%" viewBox="0 0 '+W+' '+H+'" style="overflow:visible">'
+    +'<defs><linearGradient id="spark-grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+col+'" stop-opacity="0.18"/><stop offset="100%" stop-color="'+col+'" stop-opacity="0"/></linearGradient></defs>'
+    +'<path d="'+areaPath+'" fill="url(#spark-grad)"/>'
+    +'<path d="'+linePath+'" fill="none" stroke="'+col+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
+    +pts.map((p,i)=>'<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="3" fill="#fff" stroke="'+col+'" stroke-width="2"/>').join('')
+    +'</svg>'
+    +'<div style="display:flex;justify-content:space-between;margin-top:8px;font-size:.72rem;color:var(--text3)">'
+      +'<span>'+esc(first.fecha)+' · '+first.score+'%</span>'
+      +'<span style="color:'+col+';font-weight:700">'+(delta>0?'▲ +':delta<0?'▼ ':'')+delta+'% acumulado</span>'
+      +'<span>'+esc(last.fecha)+' · '+last.score+'%</span>'
+    +'</div>';
+}
+
+// Tarjeta de riesgo por criticidad de negocio (#2)
+function criticidadNegocioHTML(evaluated){
+  // Agrupa equipos con problemas por nivel de criticidad de su área
+  const niveles={alta:[],media:[],baja:[]};
+  evaluated.forEach(e=>{
+    if(e.severity==='ok') return;
+    const nivel=criticidadEquipo(e.eq);
+    (niveles[nivel]||niveles.media).push(e);
+  });
+  const totalConProblemas=niveles.alta.length+niveles.media.length+niveles.baja.length;
+  if(totalConProblemas===0){
+    return '<div style="text-align:center;padding:24px 10px;color:var(--text3);font-size:.82rem">✅ Ningún equipo con problemas en áreas registradas.</div>';
+  }
+  let html='';
+  ['alta','media','baja'].forEach(nivel=>{
+    const info=CRIT_INFO[nivel];
+    const arr=niveles[nivel];
+    const pct=Math.round((arr.length/totalConProblemas)*100);
+    html+='<div style="margin-bottom:12px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'
+        +'<span style="font-size:.8rem;color:var(--text)">'+info.icon+' Criticidad '+info.label+'</span>'
+        +'<span style="font-size:.74rem;color:var(--text3)"><b style="color:'+info.color+'">'+arr.length+'</b> equipo'+(arr.length!==1?'s':'')+'</span>'
+      +'</div>'
+      +'<div class="bar-track" style="height:14px"><div class="bar-fill" style="width:'+pct+'%;background:'+info.color+'"></div></div>'
+      +'</div>';
+  });
+  html+='<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:.72rem;color:var(--text2);line-height:1.5">💡 Los equipos con problemas en áreas de <b>criticidad alta</b> deben priorizarse aunque su puntaje técnico sea menor: su falla impacta directamente la operación.</div>';
+  html+='<div style="margin-top:8px;font-size:.7rem;color:var(--text3)">Configura la criticidad de cada área en la pestaña <b>Resumen</b>.</div>';
+  return html;
+}
 
 function evaluarEquipo(eq){
   const reasons=[];let score=0;
@@ -1676,7 +2956,6 @@ function renderCadDashboard(){
   const grid=document.getElementById('cad-dash-grid');
   if(!state.activeClient){ grid.innerHTML=emptyHTML('👈','Selecciona un cliente',''); return; }
   if(!eqs.length){ grid.innerHTML=emptyHTML('📦','Sin equipos','Importa equipos para ver el dashboard'); return; }
-
   const evaluated=eqs.map(eq=>({eq,...evaluarEquipo(eq)}));
   const total=evaluated.length;
   const counts={critical:0,medium:0,low:0,ok:0};
@@ -1724,6 +3003,44 @@ function renderCadDashboard(){
   const healthScore=Math.round(100 - ((counts.critical*4+counts.medium*2+counts.low*1)/(total*4))*100);
   const healthColor= healthScore>=75?'#16a34a': healthScore>=50?'#d97706': healthScore>=25?'#ea580c':'#dc2626';
 
+  // ── #3 Comparativa temporal: registrar snapshot del mes y calcular tendencia ──
+  registrarSnapshot(healthScore);
+  const snaps=(getC().snapshots||[]);
+  let tendencia=null;
+  if(snaps.length>=2){
+    const prev=snaps[snaps.length-2].score;
+    tendencia={delta:healthScore-prev, prevFecha:snaps[snaps.length-2].fecha};
+  }
+
+  // ── #2 Criticidad de negocio: riesgo ponderado por importancia del área ──
+  const equiposCriticosNegocio=evaluated.filter(e=>e.severity!=='ok' && criticidadEquipo(e.eq)==='alta');
+  const riesgoNegocio=evaluated.reduce((s,e)=>{
+    if(e.severity==='ok') return s;
+    const peso=CRIT_PESO[criticidadEquipo(e.eq)]||2;
+    const sevW=e.severity==='critical'?3:e.severity==='medium'?2:1;
+    return s+peso*sevW;
+  },0);
+  const riesgoMax=evaluated.length*9||1;
+  const riesgoNegocioPct=Math.round((riesgoNegocio/riesgoMax)*100);
+
+  // ── #1 Resumen ejecutivo: texto en lenguaje no técnico ──
+  const nombreCliente=getC().name||'la empresa';
+  const urgentes=counts.critical;
+  const proy=proyectarCostos(evaluated);
+  let ejecutivoTexto='';
+  if(counts.critical+counts.medium+counts.low===0){
+    ejecutivoTexto='Los '+total+' equipos de '+nombreCliente+' se encuentran en buen estado. No se requiere inversión inmediata; se recomienda mantenimiento preventivo periódico.';
+  } else {
+    ejecutivoTexto='De los '+total+' equipos de '+nombreCliente+', '
+      +'<b style="color:#dc2626">'+urgentes+' requiere'+(urgentes!==1?'n':'')+' atención urgente</b> (0–3 meses)'
+      +(counts.medium>0?', '+counts.medium+' atención planificada (3–6 meses)':'')
+      +(counts.low>0?' y '+counts.low+' mantenimiento preventivo (6–12 meses)':'')
+      +'. La inversión estimada para regularizar la flota es de <b>'+fmtSoles(proy.totalMin)+' a '+fmtSoles(proy.totalMax)+'</b>. '
+      +(equiposCriticosNegocio.length>0
+        ? '<b style="color:#dc2626">'+equiposCriticosNegocio.length+' de estos equipos están en áreas críticas del negocio</b>, por lo que su atención debería priorizarse.'
+        : 'El índice de salud tecnológica actual es de '+healthScore+'%.');
+  }
+
   // SVG donut
   function donutSVG(pct, color, size=100){
     const r=38; const C=2*Math.PI*r;
@@ -1753,6 +3070,17 @@ function renderCadDashboard(){
 
   grid.innerHTML=`
 
+  <!-- Resumen ejecutivo (#1) -->
+  <div class="dash-card" style="grid-column:1/-1;border-left:4px solid ${healthColor}">
+    <h4>📄 Resumen Ejecutivo</h4>
+    <p style="font-size:.9rem;line-height:1.7;color:var(--text)">${ejecutivoTexto}</p>
+    <div style="margin-top:12px;display:flex;gap:20px;flex-wrap:wrap;font-size:.78rem;color:var(--text2)">
+      <span>🏥 Salud tecnológica: <b style="color:${healthColor}">${healthScore}%</b></span>
+      ${tendencia?`<span>${tendencia.delta>0?'📈':tendencia.delta<0?'📉':'➡️'} Tendencia: <b style="color:${tendencia.delta>0?'#16a34a':tendencia.delta<0?'#dc2626':'var(--text2)'}">${tendencia.delta>0?'+':''}${tendencia.delta}%</b> vs. ${esc(tendencia.prevFecha)}</span>`:''}
+      <span>⚠️ Riesgo de negocio: <b style="color:${riesgoNegocioPct>=60?'#dc2626':riesgoNegocioPct>=30?'#ea580c':'#16a34a'}">${riesgoNegocioPct}%</b></span>
+    </div>
+  </div>
+
   <!-- Card 1: Health gauge -->
   <div class="dash-card">
     <h4>🏥 Índice de Salud Tecnológica</h4>
@@ -1769,6 +3097,18 @@ function renderCadDashboard(){
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- Card Tendencia temporal (#3) -->
+  <div class="dash-card">
+    <h4>📈 Evolución de la Salud Tecnológica</h4>
+    ${sparklineHTML(snaps)}
+  </div>
+
+  <!-- Card Criticidad de negocio (#2) -->
+  <div class="dash-card">
+    <h4>🎯 Riesgo por Criticidad de Negocio</h4>
+    ${criticidadNegocioHTML(evaluated)}
   </div>
 
   <!-- Card 2: Distribución visual -->
@@ -2096,6 +3436,8 @@ function exportarVistaCliente(){
     resumen: c.resumen||{},
     equipos: c.equipos,
     piezasCustom: c.piezasCustom||[],
+    snapshots: c.snapshots||[],
+    criticidad: c.criticidad||{},
     generado: new Date().toLocaleDateString('es-PE',{day:'2-digit',month:'long',year:'numeric'}),
   };
 
@@ -2562,6 +3904,8 @@ const EQUIPOS = ${eqsJSON};
 const RESUMEN = ${JSON.stringify(res).replace(/<\/script>/gi,'<\\/script>')};
 const CLIENT_NAME = ${JSON.stringify(data.name)};
 const PIEZAS_CUSTOM = ${JSON.stringify(data.piezasCustom||[]).replace(/<\/script>/gi,'<\\/script>')};
+const SNAPSHOTS = ${JSON.stringify(data.snapshots||[]).replace(/<\/script>/gi,'<\\/script>')};
+const CRITICIDAD = ${JSON.stringify(data.criticidad||{}).replace(/<\/script>/gi,'<\\/script>')};
 const CAMPOS_SHOW = ['ITEM','AREA','USUARIO','TIPO','HOSTNAME','MARCA','MODELO','SERIE','PROCESADOR','PLACA','MEMORIA','VIDEO','ALMACENAMIENTO','DISCO_PRINCIPAL','DISCO_SECUNDARIO','BATERIA','SISTEMA','OFFICE','ANTIVIRUS','OBSERVACIONES','ACTIVO_ALQ','NOMBRE_USUARIO','LICENCIAS','CLAVE_EQUIPO','NOM_EQUIPO','DOMINIO','IP','CONTRASENA_CUENTA','CLAVE_CUENTA','CUENTA_CORREO'];
 
 function switchTab(tab){
@@ -2676,28 +4020,48 @@ function renderPiezas(filtro){
 
 // ── GALERÍA ──
 function renderGaleria(eqs){
-  const colors=['#2563eb','#7c3aed','#db2777','#ea580c','#d97706','#16a34a','#0891b2','#4f46e5'];
-  const CHART_COLORS=colors;
   const cont=document.getElementById('cards-container');
   if(!eqs.length){cont.innerHTML='<div class="empty-msg">Sin equipos</div>';return;}
-  cont.innerHTML=eqs.map(eq=>{
-    const t=(eq.TIPO||'otro').toLowerCase();
-    const tagCls=({laptop:'tag-laptop',desktop:'tag-desktop',servidor:'tag-servidor',impresora:'tag-impresora',switch:'tag-switch'})[t]||'tag-otro';
-    const [sc,sl]=statusInfo(eq);
-    return \`<div class="eq-card" onclick="verEquipo('\${eq._id}')">
-      <div class="eq-card-top"><span class="type-tag \${tagCls}">\${esc(eq.TIPO||'')}</span><span class="status-pill \${sc}">\${sl}</span></div>
-      <h3>\${esc(eq.HOSTNAME||eq.MODELO||'Sin nombre')}</h3>
-      <div class="eq-card-sub">\${esc(eq.USUARIO||'—')} · \${esc(eq.AREA||'—')}</div>
-      <div class="eq-divider"></div>
-      <div class="eq-fields">
-        <div class="eq-field"><label>Marca</label><span>\${esc(eq.MARCA||'—')}</span></div>
-        <div class="eq-field"><label>Modelo</label><span>\${esc(eq.MODELO||'—')}</span></div>
-        <div class="eq-field"><label>Memoria</label><span>\${esc(eq.MEMORIA||'—')}</span></div>
-        <div class="eq-field"><label>Disco</label><span>\${esc(eq.DISCO_PRINCIPAL||eq.ALMACENAMIENTO||'—')}</span></div>
-        <div class="eq-field"><label>Sistema</label><span>\${esc(eq.SISTEMA||'—')}</span></div>
-        <div class="eq-field"><label>Serie</label><span style="font-size:.7rem">\${esc(eq.SERIE||'—')}</span></div>
-      </div>
+
+  // Agrupar por área, ordenadas alfabéticamente; sin área al final
+  var grupos={};
+  eqs.forEach(function(eq){
+    var area=eq.AREA||'Sin área';
+    if(!grupos[area]) grupos[area]=[];
+    grupos[area].push(eq);
+  });
+  var areas=Object.keys(grupos).sort(function(a,b){
+    if(a==='Sin área') return 1;
+    if(b==='Sin área') return -1;
+    return a.localeCompare(b,'es');
+  });
+
+  cont.innerHTML=areas.map(function(area){
+    var count=grupos[area].length;
+    var header=\`<div style="grid-column:1/-1;display:flex;align-items:center;gap:12px;margin:10px 0 4px">
+      <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text2)">\${esc(area)}</div>
+      <span style="font-size:.7rem;background:var(--bg);border:1px solid var(--border2);color:var(--text3);border-radius:10px;padding:1px 8px">\${count} equipo\${count!==1?'s':''}</span>
+      <div style="flex:1;height:1px;background:var(--border)"></div>
     </div>\`;
+    return header + grupos[area].map(function(eq){
+      const t=(eq.TIPO||'otro').toLowerCase();
+      const tagCls=({laptop:'tag-laptop',desktop:'tag-desktop',servidor:'tag-servidor',impresora:'tag-impresora',switch:'tag-switch'})[t]||'tag-otro';
+      const [sc,sl]=statusInfo(eq);
+      return \`<div class="eq-card" onclick="verEquipo('\${eq._id}')">
+        <div class="eq-card-top"><span class="type-tag \${tagCls}">\${esc(eq.TIPO||'')}</span><span class="status-pill \${sc}">\${sl}</span></div>
+        <h3>\${esc(eq.HOSTNAME||eq.MODELO||'Sin nombre')}</h3>
+        <div class="eq-card-sub">\${esc(eq.USUARIO||'—')} · \${esc(eq.AREA||'—')}</div>
+        <div class="eq-divider"></div>
+        <div class="eq-fields">
+          <div class="eq-field"><label>Marca</label><span>\${esc(eq.MARCA||'—')}</span></div>
+          <div class="eq-field"><label>Modelo</label><span>\${esc(eq.MODELO||'—')}</span></div>
+          <div class="eq-field"><label>Memoria</label><span>\${esc(eq.MEMORIA||'—')}</span></div>
+          <div class="eq-field"><label>Disco</label><span>\${esc(eq.DISCO_PRINCIPAL||eq.ALMACENAMIENTO||'—')}</span></div>
+          <div class="eq-field"><label>Sistema</label><span>\${esc(eq.SISTEMA||'—')}</span></div>
+          <div class="eq-field"><label>Serie</label><span style="font-size:.7rem">\${esc(eq.SERIE||'—')}</span></div>
+        </div>
+      </div>\`;
+    }).join('');
   }).join('');
 }
 function filterGaleria(q){
@@ -2750,6 +4114,42 @@ function filterTabla(q){
 }
 function statusPill(eq){const[c,l]=statusInfo(eq);return\`<span class="status-pill \${c}">\${l}</span>\`;}
 
+// ── Helpers para tarjetas nuevas (cliente, solo lectura) ──
+function clientSparkline(snaps){
+  if(!snaps||snaps.length<2){
+    return '<div style="text-align:center;padding:24px 10px;color:var(--text3);font-size:.82rem">📅 Historial no disponible en este informe.</div>';
+  }
+  var W=280,H=90,pad=8;
+  var scores=snaps.map(function(s){return s.score;});
+  var min=Math.min.apply(null,scores.concat([0])), max=Math.max.apply(null,scores.concat([100]));
+  var range=(max-min)||1;
+  var stepX=(W-pad*2)/(snaps.length-1);
+  var pts=snaps.map(function(s,i){return [pad+i*stepX, pad+(H-pad*2)*(1-(s.score-min)/range)];});
+  var linePath=pts.map(function(p,i){return (i===0?'M':'L')+p[0].toFixed(1)+' '+p[1].toFixed(1);}).join(' ');
+  var areaPath=linePath+' L'+pts[pts.length-1][0].toFixed(1)+' '+(H-pad)+' L'+pts[0][0].toFixed(1)+' '+(H-pad)+' Z';
+  var first=snaps[0],last=snaps[snaps.length-1],delta=last.score-first.score;
+  var col=delta>0?'#16a34a':delta<0?'#dc2626':'#64748b';
+  return '<svg width="100%" viewBox="0 0 '+W+' '+H+'"><defs><linearGradient id="cspark" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+col+'" stop-opacity="0.18"/><stop offset="100%" stop-color="'+col+'" stop-opacity="0"/></linearGradient></defs>'
+    +'<path d="'+areaPath+'" fill="url(#cspark)"/><path d="'+linePath+'" fill="none" stroke="'+col+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
+    +pts.map(function(p){return '<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="3" fill="#fff" stroke="'+col+'" stroke-width="2"/>';}).join('')+'</svg>'
+    +'<div style="display:flex;justify-content:space-between;margin-top:8px;font-size:.72rem;color:var(--text3)"><span>'+esc(first.fecha)+' · '+first.score+'%</span><span style="color:'+col+';font-weight:700">'+(delta>0?'▲ +':delta<0?'▼ ':'')+delta+'%</span><span>'+esc(last.fecha)+' · '+last.score+'%</span></div>';
+}
+function clientCriticidad(evaluated){
+  var CRIT_INFO={alta:{label:'Alta',color:'#dc2626',icon:'🔴'},media:{label:'Media',color:'#d97706',icon:'🟡'},baja:{label:'Baja',color:'#16a34a',icon:'🟢'}};
+  var crit=(typeof CRITICIDAD!=='undefined'?CRITICIDAD:{});
+  var niveles={alta:0,media:0,baja:0};
+  evaluated.forEach(function(e){ if(e.severity==='ok')return; var n=crit[e.eq.AREA||'']||'media'; niveles[n]=(niveles[n]||0)+1; });
+  var totalP=niveles.alta+niveles.media+niveles.baja;
+  if(totalP===0) return '<div style="text-align:center;padding:24px 10px;color:var(--text3);font-size:.82rem">✅ Ningún equipo con problemas en áreas registradas.</div>';
+  var html='';
+  ['alta','media','baja'].forEach(function(nivel){
+    var info=CRIT_INFO[nivel],n=niveles[nivel],pct=Math.round((n/totalP)*100);
+    html+='<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span style="font-size:.8rem;color:var(--text)">'+info.icon+' Criticidad '+info.label+'</span><span style="font-size:.74rem;color:var(--text3)"><b style="color:'+info.color+'">'+n+'</b> equipo'+(n!==1?'s':'')+'</span></div><div class="bar-track" style="height:14px"><div class="bar-fill" style="width:'+pct+'%;background:'+info.color+'"></div></div></div>';
+  });
+  html+='<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:.72rem;color:var(--text2);line-height:1.5">💡 Los equipos con problemas en áreas de <b>criticidad alta</b> deben priorizarse: su falla impacta directamente la operación.</div>';
+  return html;
+}
+
 // ── CADUCIDAD DASHBOARD ──
 function renderCadDashboard(eqs){
   const grid=document.getElementById('cad-dash-grid');
@@ -2795,7 +4195,36 @@ function renderCadDashboard(eqs){
   const card=(title,body)=>\`<div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.08)">
     <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text3);margin-bottom:16px">\${title}</div>
     \${body}</div>\`;
+
+  // ── Resumen ejecutivo (#1) ──
+  var snaps=(typeof SNAPSHOTS!=='undefined'?SNAPSHOTS:[]);
+  var proy=proyectarCostos(evaluated);
+  var critAlta=evaluated.filter(function(e){return e.severity!=='ok' && (CRITICIDAD[e.eq.AREA||'']||'media')==='alta';});
+  var ejecutivoTexto;
+  if(counts.critical+counts.medium+counts.low===0){
+    ejecutivoTexto='Los '+total+' equipos de '+esc(CLIENT_NAME)+' se encuentran en buen estado. No se requiere inversión inmediata; se recomienda mantenimiento preventivo periódico.';
+  } else {
+    ejecutivoTexto='De los '+total+' equipos, <b style="color:#dc2626">'+counts.critical+' requiere'+(counts.critical!==1?'n':'')+' atención urgente</b> (0–3 meses)'
+      +(counts.medium>0?', '+counts.medium+' atención planificada (3–6 meses)':'')
+      +(counts.low>0?' y '+counts.low+' mantenimiento preventivo (6–12 meses)':'')
+      +'. La inversión estimada para regularizar la flota es de <b>'+fmtSoles(proy.totalMin)+' a '+fmtSoles(proy.totalMax)+'</b>. '
+      +(critAlta.length>0?'<b style="color:#dc2626">'+critAlta.length+' de estos equipos están en áreas críticas del negocio</b> y deberían priorizarse.':'El índice de salud tecnológica actual es de '+healthScore+'%.');
+  }
+  var tendenciaTxt='';
+  if(snaps.length>=2){
+    var d=healthScore-snaps[snaps.length-2].score;
+    tendenciaTxt='<span>'+(d>0?'📈':d<0?'📉':'➡️')+' Tendencia: <b style="color:'+(d>0?'#16a34a':d<0?'#dc2626':'var(--text2)')+'">'+(d>0?'+':'')+d+'%</b> vs. '+esc(snaps[snaps.length-2].fecha)+'</span>';
+  }
+
   grid.innerHTML=
+  \`<div style="grid-column:1/-1;background:var(--white);border:1px solid var(--border);border-left:4px solid \${healthColor};border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+     <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text3);margin-bottom:12px">📄 Resumen Ejecutivo</div>
+     <p style="font-size:.9rem;line-height:1.7;color:var(--text)">\${ejecutivoTexto}</p>
+     <div style="margin-top:12px;display:flex;gap:20px;flex-wrap:wrap;font-size:.78rem;color:var(--text2)">
+       <span>🏥 Salud tecnológica: <b style="color:\${healthColor}">\${healthScore}%</b></span>
+       \${tendenciaTxt}
+     </div>
+   </div>\`+
   card('🏥 Índice de Salud Tecnológica',\`
     <div style="display:flex;align-items:center;gap:20px">
       <svg width="100" height="100" viewBox="0 0 100 100" style="flex-shrink:0">
@@ -2815,6 +4244,8 @@ function renderCadDashboard(eqs){
         </div>
       </div>
     </div>\`)+
+  card('📈 Evolución de la Salud Tecnológica', clientSparkline(snaps))+
+  card('🎯 Riesgo por Criticidad de Negocio', clientCriticidad(evaluated))+
   card('📦 Distribución por Estado',\`
     <div style="display:grid;gap:4px;height:130px;grid-template-rows:1.2fr 0.8fr;margin-bottom:10px">
       <div style="display:flex;gap:4px">\${counts.critical>0?\`<div style="flex:\${counts.critical};background:#dc2626;border-radius:5px;display:flex;align-items:center;justify-content:center;flex-direction:column"><div style="font-size:.9rem;font-weight:800;color:#fff">\${counts.critical}</div><div style="font-size:.6rem;color:rgba(255,255,255,.85)">Críticos</div></div>\`:''}\${counts.medium>0?\`<div style="flex:\${counts.medium};background:#ea580c;border-radius:5px;display:flex;align-items:center;justify-content:center;flex-direction:column"><div style="font-size:.9rem;font-weight:800;color:#fff">\${counts.medium}</div><div style="font-size:.6rem;color:rgba(255,255,255,.85)">Moderados</div></div>\`:''}</div>
