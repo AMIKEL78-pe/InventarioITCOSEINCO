@@ -381,7 +381,12 @@ const DEFAULT_SETTINGS = {
   ram: { criticalGb: 8, warningGb: 8 },
   storageWarningGb: 256,
   server: { enabled: true, ramCriticalGb: 16, ramWarningGb: 32, keywords: 'servidor,server' },
-  licenses: { defaultValidityMonths: 12, alertDays1: 15, alertDays2: 30 }
+  licenses: { defaultValidityMonths: 12, alertDays1: 15, alertDays2: 30 },
+  commercialUSD: {
+    fx: 3.75,
+    prices: { cpu: 750, ram: 60, storage: 100, os: 25, antivirus: 15, bateria: 40 },
+    fases: { cpu: '1', ram: '2', storage: '2', os: '1', antivirus: '1', bateria: '3' }
+  }
 };
 
 let DB = loadDB();
@@ -402,6 +407,7 @@ function loadDB(){
       const data = JSON.parse(raw);
       if(!data.settings) data.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
       if(!data.settings.licenses) data.settings.licenses = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.licenses));
+      if(!data.settings.commercialUSD) data.settings.commercialUSD = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.commercialUSD));
       if(!data.licenses) data.licenses = [];
       return data;
     }
@@ -1034,16 +1040,8 @@ function renderDashboard(assets){
         <div style="padding:14px 18px;">${securityCoverageHTML(computeSecurityCoverage(assets))}</div>
       </div>
     </div>
-
-    ${improvedAssetsHTML(computeImprovedAssets(assets))}
-
-    <div class="panel">
-      <div class="panel-head"><h3>Equipos que requieren atención inmediata</h3></div>
-      <div class="table-scroll">${assetTableHTML(assets.filter(a=>a.overall==='critical').sort((a,b)=>a.score-b.score).slice(0,8))}</div>
-    </div>
   `;
   drawCharts(assets);
-  bindRowClicks();
   const btnPlan = document.getElementById('btnPlanToReport');
   if(btnPlan) btnPlan.onclick = ()=>{
     renderExecReport();
@@ -1263,11 +1261,72 @@ function assetTableHTML(assets, opts){
   </table>`;
 }
 
+function computeCaducidad(assets){
+  const urgente = assets.filter(a=>a.overall==='critical');
+  const media = assets.filter(a=>a.overall==='warning');
+  const ok = assets.filter(a=>a.overall==='optimal');
+  const worst = [...assets].sort((a,b)=>a.score-b.score).slice(0,10);
+  return { urgente, media, ok, worst };
+}
+
+function caducidadHTML(c){
+  const rows = c.worst.map(a=>`
+    <tr data-id="${a._id}">
+      <td>${escapeHtml(a.hostname)}</td>
+      <td>${escapeHtml(a.usuario)}</td>
+      <td>${escapeHtml(a.area)}</td>
+      <td>${badgeHTML(a.overall)}</td>
+      <td style="font-size:12px;">${escapeHtml(a.vidaUtil)}</td>
+    </tr>`).join('');
+  return `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">
+      <div style="border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--critical-bg);">
+        <div style="font-size:11px;font-weight:700;color:var(--critical);text-transform:uppercase;">Reemplazo 0-3 meses</div>
+        <div style="font-size:24px;font-weight:800;color:var(--critical);margin-top:4px;">${c.urgente.length}</div>
+      </div>
+      <div style="border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--warning-bg);">
+        <div style="font-size:11px;font-weight:700;color:#B45309;text-transform:uppercase;">Renovación 6-12 meses</div>
+        <div style="font-size:24px;font-weight:800;color:#B45309;margin-top:4px;">${c.media.length}</div>
+      </div>
+      <div style="border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--optimal-bg);">
+        <div style="font-size:11px;font-weight:700;color:#047857;text-transform:uppercase;">Vigente 18-30 meses</div>
+        <div style="font-size:24px;font-weight:800;color:#047857;margin-top:4px;">${c.ok.length}</div>
+      </div>
+    </div>
+    <div class="table-scroll" style="max-height:280px;">
+      <table>
+        <thead><tr><th>Hostname</th><th>Usuario</th><th>Área</th><th>Riesgo</th><th>Vida útil estimada</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
 function renderTableView(assets){
   const root = document.getElementById('viewRoot');
   const areas = [...new Set(assets.map(a=>a.area))].sort();
   const tipos = [...new Set(assets.map(a=>a.tipo))].sort();
+  const k = computeKPIs(assets);
   root.innerHTML = `
+    <div class="kpi-grid">
+      <div class="kpi" style="--accent:var(--blue)"><div class="kpi-label">Total inventariado</div><div class="kpi-value">${k.total}</div><div class="kpi-sub">Equipos registrados</div></div>
+      <div class="kpi" style="--accent:var(--critical)"><div class="kpi-label">Críticos</div><div class="kpi-value" style="color:var(--critical)">${k.critical}</div><div class="kpi-sub">Requieren reemplazo</div></div>
+      <div class="kpi" style="--accent:var(--warning)"><div class="kpi-label">Advertencia</div><div class="kpi-value" style="color:#B45309">${k.warning}</div><div class="kpi-sub">Oportunidad de mejora</div></div>
+      <div class="kpi" style="--accent:var(--optimal)"><div class="kpi-label">Óptimos</div><div class="kpi-value" style="color:#047857">${k.optimal}</div><div class="kpi-sub">Sin acción requerida</div></div>
+      <div class="kpi" style="--accent:var(--critical)"><div class="kpi-label">Riesgo seguridad</div><div class="kpi-value" style="color:var(--critical)">${k.noAv}</div><div class="kpi-sub">Sin antivirus / SO no soportado</div></div>
+    </div>
+
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-head"><h3>Módulo de Caducidad Tecnológica</h3></div>
+      <div style="padding:16px 18px;">${caducidadHTML(computeCaducidad(assets))}</div>
+    </div>
+
+    ${improvedAssetsHTML(computeImprovedAssets(assets))}
+
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-head"><h3>Equipos que requieren atención inmediata</h3></div>
+      <div class="table-scroll">${assetTableHTML([...assets].filter(a=>a.overall==='critical').sort((a,b)=>a.score-b.score).slice(0,8))}</div>
+    </div>
+
     <div class="panel">
       <div class="panel-head">
         <h3>${assets.length} equipos</h3>
@@ -1346,6 +1405,127 @@ function bindRowClicks(){
 }
 
 /* ---------- Plan de renovación ---------- */
+/* ---------- Calculadora Comercial (USD) — selector de piezas ---------- */
+const PIECE_LABELS = {
+  cpu: 'Equipo completo (CPU obsoleta — reemplazo)',
+  ram: 'Ampliación de memoria RAM',
+  storage: 'Migración a SSD/NVMe',
+  os: 'Actualización de Sistema Operativo',
+  antivirus: 'Licencia de Antivirus',
+  bateria: 'Reemplazo de batería'
+};
+
+function computePiecesInventory(assets){
+  const criticos = assets.filter(a=>a.overall==='critical');
+  const noCriticos = assets.filter(a=>a.overall!=='critical');
+  return {
+    cpu: criticos,
+    ram: noCriticos.filter(a=>a.levels.ram==='warning'),
+    storage: noCriticos.filter(a=>a.levels.storage==='warning'),
+    os: noCriticos.filter(a=>a.so.legacy),
+    antivirus: noCriticos.filter(a=>a.antivirus.active===false),
+    bateria: noCriticos.filter(a=>a.bateria.status==='degradada' || a.bateria.status==='sin_bateria')
+  };
+}
+
+function commercialCalculatorHTML(pieces, settings){
+  const rows = Object.keys(PIECE_LABELS).map(key=>{
+    const count = pieces[key].length;
+    const price = settings.prices[key];
+    const fase = settings.fases[key];
+    const subtotal = count * price;
+    return `
+    <tr data-piece="${key}">
+      <td><input type="checkbox" class="pieceInclude" data-piece="${key}" ${count?'checked':''} ${count?'':'disabled'}></td>
+      <td>${PIECE_LABELS[key]}</td>
+      <td class="mono" style="text-align:center;">${count}</td>
+      <td><input type="number" class="pieceUSD" data-piece="${key}" value="${price}" min="0" step="1" style="width:90px;border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:12.5px;"></td>
+      <td>
+        <select class="pieceFase" data-piece="${key}" style="border:1px solid var(--line);border-radius:6px;padding:5px 6px;font-size:12.5px;">
+          <option value="1" ${fase==='1'?'selected':''}>Fase 1</option>
+          <option value="2" ${fase==='2'?'selected':''}>Fase 2</option>
+          <option value="3" ${fase==='3'?'selected':''}>Fase 3</option>
+        </select>
+      </td>
+      <td class="mono pieceSubtotal" data-piece="${key}" style="font-weight:700;">$ ${subtotal.toLocaleString('en-US')}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px;">
+      <div style="font-size:12px;color:var(--muted);">Cantidades extraídas automáticamente del inventario de "${escapeHtml(DB.active)}". Precios y fase editables.</div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:12px;">
+        <label style="color:var(--muted);">Tipo de cambio (S/ por $)</label>
+        <input type="number" id="fxRate" value="${settings.fx}" min="0" step="0.01" style="width:70px;border:1px solid var(--line);border-radius:6px;padding:5px 8px;">
+      </div>
+    </div>
+    <table>
+      <thead><tr><th></th><th>Pieza / Servicio</th><th style="text-align:center;">Cant.</th><th>Precio unit. USD</th><th>Fase</th><th>Subtotal USD</th></tr></thead>
+      <tbody id="pieceTableBody">${rows}</tbody>
+    </table>
+    <div id="phaseTotalsUSD" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px;"></div>
+    <button class="btn btn-primary no-print" id="btnSaveCommercialPrices" style="margin-top:14px;">Guardar precios y generar cotización</button>
+  `;
+}
+
+function recalcCommercialCalculator(pieces){
+  const settings = DB.settings.commercialUSD;
+  let totals = { '1':0, '2':0, '3':0 };
+  Object.keys(PIECE_LABELS).forEach(key=>{
+    const checkbox = document.querySelector(`.pieceInclude[data-piece="${key}"]`);
+    if(!checkbox || !checkbox.checked) return;
+    const count = pieces[key].length;
+    const price = +document.querySelector(`.pieceUSD[data-piece="${key}"]`).value || 0;
+    const fase = document.querySelector(`.pieceFase[data-piece="${key}"]`).value;
+    const subtotal = count * price;
+    const cell = document.querySelector(`.pieceSubtotal[data-piece="${key}"]`);
+    if(cell) cell.textContent = '$ '+subtotal.toLocaleString('en-US');
+    totals[fase] += subtotal;
+  });
+  const fx = +document.getElementById('fxRate').value || settings.fx;
+  const totalGeneral = totals['1']+totals['2']+totals['3'];
+  document.getElementById('phaseTotalsUSD').innerHTML = `
+    <div style="border:1px solid var(--line);border-radius:10px;padding:12px;">
+      <div style="font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;">Fase 1</div>
+      <div style="font-size:17px;font-weight:800;">$ ${totals['1'].toLocaleString('en-US')}</div>
+      <div style="font-size:11px;color:var(--muted);">S/ ${(totals['1']*fx).toLocaleString('es-PE',{maximumFractionDigits:0})}</div>
+    </div>
+    <div style="border:1px solid var(--line);border-radius:10px;padding:12px;">
+      <div style="font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;">Fase 2</div>
+      <div style="font-size:17px;font-weight:800;">$ ${totals['2'].toLocaleString('en-US')}</div>
+      <div style="font-size:11px;color:var(--muted);">S/ ${(totals['2']*fx).toLocaleString('es-PE',{maximumFractionDigits:0})}</div>
+    </div>
+    <div style="border:1px solid var(--line);border-radius:10px;padding:12px;">
+      <div style="font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;">Fase 3</div>
+      <div style="font-size:17px;font-weight:800;">$ ${totals['3'].toLocaleString('en-US')}</div>
+      <div style="font-size:11px;color:var(--muted);">S/ ${(totals['3']*fx).toLocaleString('es-PE',{maximumFractionDigits:0})}</div>
+    </div>
+    <div style="border:1px solid var(--blue);border-radius:10px;padding:12px;background:#EFF4FF;">
+      <div style="font-size:10.5px;color:var(--blue);font-weight:700;text-transform:uppercase;">Total propuesta</div>
+      <div style="font-size:17px;font-weight:800;color:var(--blue);">$ ${totalGeneral.toLocaleString('en-US')}</div>
+      <div style="font-size:11px;color:var(--blue);">S/ ${(totalGeneral*fx).toLocaleString('es-PE',{maximumFractionDigits:0})}</div>
+    </div>
+  `;
+}
+
+function bindCommercialCalculator(pieces){
+  recalcCommercialCalculator(pieces);
+  document.querySelectorAll('.pieceInclude, .pieceUSD, .pieceFase, #fxRate').forEach(el=>{
+    el.addEventListener('input', ()=>recalcCommercialCalculator(pieces));
+    el.addEventListener('change', ()=>recalcCommercialCalculator(pieces));
+  });
+  document.getElementById('btnSaveCommercialPrices').onclick = ()=>{
+    const prices = {}, fases = {};
+    Object.keys(PIECE_LABELS).forEach(key=>{
+      prices[key] = +document.querySelector(`.pieceUSD[data-piece="${key}"]`).value || 0;
+      fases[key] = document.querySelector(`.pieceFase[data-piece="${key}"]`).value;
+    });
+    DB.settings.commercialUSD = { fx: +document.getElementById('fxRate').value || DB.settings.commercialUSD.fx, prices, fases };
+    saveDB();
+    showToast('Precios guardados — se aplicarán en próximas cotizaciones');
+  };
+}
+
 function renderRenewalView(assets){
   const root = document.getElementById('viewRoot');
   const priorized = [...assets].filter(a=>a.overall!=='optimal').sort((a,b)=>a.score-b.score);
@@ -1388,9 +1568,14 @@ function renderRenewalView(assets){
   const genRows = Object.entries(genBuckets).sort((a,b)=>b[1]-a[1]).map(([g,c])=>`<tr><td>${escapeHtml(g)}</td><td>${c}</td><td>${fmtPct(c/assets.length*100)}</td></tr>`).join('');
 
   root.innerHTML = `
+    <div class="panel" style="margin-bottom:22px;">
+      <div class="panel-head"><h3>Calculadora Comercial (USD) — Selección de piezas</h3></div>
+      <div style="padding:16px 18px;">${commercialCalculatorHTML(computePiecesInventory(assets), DB.settings.commercialUSD)}</div>
+    </div>
+
     <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:22px;">
       <div class="kpi" style="--accent:var(--critical)"><div class="kpi-label">Equipos a renovar</div><div class="kpi-value">${priorized.length}</div><div class="kpi-sub">de ${assets.length} totales</div></div>
-      <div class="kpi" style="--accent:var(--blue)"><div class="kpi-label">Inversión estimada total</div><div class="kpi-value">S/ ${totalCost.toLocaleString('es-PE')}</div><div class="kpi-sub">Referencial — ajustar según cotización real</div></div>
+      <div class="kpi" style="--accent:var(--blue)"><div class="kpi-label">Inversión estimada total (S/)</div><div class="kpi-value">S/ ${totalCost.toLocaleString('es-PE')}</div><div class="kpi-sub">Referencial — ajustar según cotización real</div></div>
       <div class="kpi" style="--accent:var(--warning)"><div class="kpi-label">Fase 1 (urgente)</div><div class="kpi-value" style="color:var(--critical)">${phases['Fase 1 · 0-3 meses (Crítico)'].length}</div><div class="kpi-sub">Reemplazo en 0-3 meses</div></div>
     </div>
     <div class="panel" style="margin-bottom:22px;">
@@ -1401,12 +1586,15 @@ function renderRenewalView(assets){
     ${phaseBlocks || '<div class="panel" style="padding:30px;text-align:center;color:var(--muted);">No hay equipos pendientes de renovación 🎉</div>'}
   `;
   bindRowClicks();
+  bindCommercialCalculator(computePiecesInventory(assets));
 }
 
 /* ---------- Comparativo de clientes ---------- */
+let compareFilters = { q: '' };
+
 function renderCompareView(){
   const root = document.getElementById('viewRoot');
-  const rows = Object.keys(DB.clients).map(name=>{
+  let rows = Object.keys(DB.clients).map(name=>{
     const assets = DB.clients[name].assets;
     const k = computeKPIs(assets);
     return { name, ...k };
@@ -1417,13 +1605,26 @@ function renderCompareView(){
     return;
   }
 
+  const filtered = compareFilters.q ? rows.filter(r=>r.name.toLowerCase().includes(compareFilters.q.toLowerCase())) : rows;
+
+  function heatCell(pct, hue){
+    // hue: 0=rojo(crítico) 40=ámbar(advertencia) 150=verde(óptimo)
+    const alpha = Math.max(0.08, pct/100);
+    const bg = `hsla(${hue},85%,45%,${alpha})`;
+    const textColor = alpha>0.55 ? '#fff' : '#0F172A';
+    return `<td style="background:${bg};color:${textColor};text-align:center;font-weight:700;font-size:12px;border-radius:4px;">${pct}%</td>`;
+  }
+
   root.innerHTML = `
-    <div class="panel">
-      <div class="panel-head"><h3>${rows.length} clientes</h3></div>
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-head">
+        <h3>${filtered.length} de ${rows.length} clientes</h3>
+        <input type="search" id="compareSearch" placeholder="Buscar cliente..." value="${escapeHtml(compareFilters.q)}" style="border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:12.5px;width:220px;">
+      </div>
       <table class="compare-table">
         <thead><tr><th>Cliente</th><th>Equipos</th><th>Salud promedio</th><th>Críticos</th><th>Advertencia</th><th>Óptimo</th><th>Riesgo seguridad</th></tr></thead>
         <tbody>
-          ${rows.map(r=>`
+          ${filtered.map(r=>`
             <tr>
               <td style="font-weight:700;">${escapeHtml(r.name)}${r.name===DB.active?' <span style="color:var(--blue);font-size:11px;">(activo)</span>':''}</td>
               <td>${r.total}</td>
@@ -1436,7 +1637,28 @@ function renderCompareView(){
         </tbody>
       </table>
     </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>Mapa de calor de riesgo inter-cliente</h3></div>
+      <div style="padding:16px 18px;overflow-x:auto;">
+        <table style="border-collapse:separate;border-spacing:4px;">
+          <thead><tr><th style="text-align:left;">Cliente</th><th>% Crítico</th><th>% Advertencia</th><th>% Óptimo</th></tr></thead>
+          <tbody>
+            ${filtered.map(r=>{
+              const t = r.total||1;
+              return `<tr>
+                <td style="font-weight:600;font-size:12.5px;padding-right:10px;">${escapeHtml(r.name)}</td>
+                ${heatCell(Math.round(r.critical/t*100), 0)}
+                ${heatCell(Math.round(r.warning/t*100), 40)}
+                ${heatCell(Math.round(r.optimal/t*100), 150)}
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
   `;
+  document.getElementById('compareSearch').oninput = e=>{ compareFilters.q = e.target.value; renderCompareView(); };
 }
 
 /* ---------- Configuración de reglas ---------- */
