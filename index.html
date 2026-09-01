@@ -1535,12 +1535,12 @@ function renderExecReport(){
 
 const LICENSE_HEADER_MAP = {
   producto: ['productos','producto','producto / version','producto/version','licencia','software'],
-  fecha_compra: ['fecha compra','fecha_compra','fecha de compra','compra'],
+  fecha_compra: ['fecha compra','fecha_compra','fecha de compra','compra','fecha inicio','fecha_inicio','fecha','fecha pedido','fecha de pedido'],
   cliente: ['cliente','empresa','usuario/area','usuario / area'],
-  precio: ['precio venta','precio_venta','precio','costo','sale price'],
+  precio: ['precio venta','precio_venta','precio','costo','sale price','total','importe','monto'],
   moneda: ['moneda','currency'],
   cantidad: ['cantidad','qty','seats','licencias'],
-  vencimiento: ['vence','vencimiento','fecha vencimiento','fecha_vencimiento','expira'],
+  vencimiento: ['vence','vencimiento','fecha vencimiento','fecha_vencimiento','expira','fecha fin','fecha_fin'],
   estado: ['estado','status'],
   categoria: ['tipo','categoria','categoría'],
   equipo: ['equipo','hostname'],
@@ -1568,8 +1568,8 @@ function parseDateFlexible(raw){
   if(!s) return null;
   let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if(m) return new Date(+m[1], +m[2]-1, +m[3]);
-  m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
-  if(m) return new Date(+m[3], +m[2]-1, +m[1]); // formato día-mes-año (Perú)
+  m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})(?:\s|$)/);
+  if(m) return new Date(+m[3], +m[2]-1, +m[1]); // formato día-mes-año (Perú), con u sin hora al final
   if(/^\d+(\.\d+)?$/.test(s)){
     // Cadena puramente numérica: nunca es una fecha en formato reconocible.
     // Si parece número de serie de Excel (rango plausible), convertir; si no, no es fecha.
@@ -1674,16 +1674,24 @@ function ingestLicenseRows(rows, headers){
   if(!rows.length){ showToast('El archivo no contiene filas.'); return; }
   const colMap = buildLicenseColumnMap(headers);
   const mappedCount = Object.keys(colMap).length;
+  const KNOWN_CATEGORIES = ['antivirus','office / productividad','sistema operativo','cloud / nube','otro'];
 
   const parsed = rows.map((row,i)=>{
     const get = field => colMap[field] ? row[colMap[field]] : '';
     const fecha_compra = parseDateFlexible(get('fecha_compra'));
     const fecha_vencimiento = parseVencimiento(get('vencimiento'), fecha_compra);
+    const producto = get('producto') || 'Sin nombre';
+    const rawCategoria = String(get('categoria')||'').trim();
+    const categoria = KNOWN_CATEGORIES.includes(rawCategoria.toLowerCase()) ? rawCategoria : inferLicenseCategory(producto);
+    const notasBase = get('notas') || '';
+    const notas = (rawCategoria && rawCategoria.toLowerCase()!==categoria.toLowerCase())
+      ? (notasBase ? notasBase+' · ' : '') + 'Clasificación origen: '+rawCategoria
+      : notasBase;
     const lic = {
       _id: 'lic'+Date.now()+'_'+i,
       pedido: get('pedido') || '',
-      producto: get('producto') || 'Sin nombre',
-      categoria: get('categoria') || '',
+      producto,
+      categoria,
       cliente: get('cliente') || 'Sin cliente',
       equipo: get('equipo') || '',
       fecha_compra: fecha_compra ? fecha_compra.toISOString() : null,
@@ -1691,7 +1699,7 @@ function ingestLicenseRows(rows, headers){
       precio: parsePrice(get('precio')),
       moneda: normalizeCurrency(get('moneda')),
       cantidad: parseInt(get('cantidad')) || 1,
-      notas: get('notas') || ''
+      notas
     };
     return rescoreLicense(lic);
   });
