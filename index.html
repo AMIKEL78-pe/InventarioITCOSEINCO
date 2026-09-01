@@ -314,6 +314,7 @@ tbody tr:last-child td{border-bottom:none;}
       <div><h2>Informe Ejecutivo</h2><p>Vista previa — usa "Imprimir / Guardar PDF" para exportar</p></div>
       <div style="display:flex;gap:8px;align-items:center;">
         <button class="btn btn-ghost" id="btnLogoUpload" style="padding:8px 12px;">Logo cliente</button>
+        <button class="btn btn-ghost" id="btnExportExcel" style="padding:8px 12px;">Exportar a Excel</button>
         <button class="btn btn-primary" id="btnPrintReport" style="padding:8px 12px;">Imprimir / Guardar PDF</button>
         <button class="modal-close" id="btnCloseReport">✕</button>
       </div>
@@ -748,7 +749,7 @@ function pushHistorySnapshot(assets){
   const k = computeKPIs(assets);
   const byId = {};
   assets.forEach(a=>{ byId[a.id] = { score:a.score, overall:a.overall }; });
-  client.history.push({ date: new Date().toISOString(), total:k.total, avg:k.avg, critical:k.critical, warning:k.warning, optimal:k.optimal, byId });
+  client.history.push({ date: new Date().toISOString(), total:k.total, avg:k.avg, critical:k.critical, warning:k.warning, optimal:k.optimal, noAv:k.noAv, byId });
   if(client.history.length > 8) client.history = client.history.slice(-8);
 }
 
@@ -843,6 +844,54 @@ function computeImprovedAssets(assets){
   return assets.map(a=>({ a, imp: assetImprovement(a) })).filter(x=>x.imp).sort((a,b)=>b.imp.delta-a.imp.delta);
 }
 
+/* --- Matriz de obsolescencia y ciclo de vida --- */
+function computeLifecycleMatrix(assets){
+  const eol = assets.filter(a=>a.levels.cpu==='critical');
+  const repotenciable = assets.filter(a=>a.levels.cpu!=='critical' && (a.levels.ram==='warning' || a.levels.storage==='warning' || a.levels.ram==='critical' || a.levels.storage==='critical'));
+  const estable = assets.filter(a=>!eol.includes(a) && !repotenciable.includes(a));
+  const total = assets.length || 1;
+  const capacidadActualizacion = Math.round((repotenciable.length/total)*100);
+  return { eol, repotenciable, estable, capacidadActualizacion };
+}
+
+/* --- Semáforo de cumplimiento: parches SO + licencias 30/60/90 --- */
+function computeComplianceLights(assets){
+  const totalEq = assets.length || 1;
+  const soLegacy = assets.filter(a=>a.so.legacy).length;
+  const soRiskPct = Math.round((soLegacy/totalEq)*100);
+
+  const activeName = DB.active.trim().toLowerCase();
+  let clientLicenses = DB.licenses.filter(l=>String(l.cliente||'').trim().toLowerCase().includes(activeName) || activeName.includes(String(l.cliente||'').trim().toLowerCase()));
+  const scope = clientLicenses.length ? 'cliente' : 'global';
+  if(!clientLicenses.length) clientLicenses = DB.licenses;
+  clientLicenses.forEach(rescoreLicense);
+
+  const bucket = (min,max) => clientLicenses.filter(l=>l.dias_calc!=null && l.dias_calc>=min && l.dias_calc<=max).length;
+  const d30 = bucket(0,30), d60 = bucket(31,60), d90 = bucket(61,90);
+  const vencidas = clientLicenses.filter(l=>l.estado_calc==='vencida').length;
+
+  return { soRiskPct, soLegacy, totalEq, d30, d60, d90, vencidas, scope, totalLic: clientLicenses.length };
+}
+
+/* --- Plan de acción comercial: inversión para llegar a 90%+ de salud --- */
+const COMMERCIAL_COST = { replace: 2600, ram: 180, storage: 350, os: 90 };
+function computeCommercialPlan(assets){
+  const below90 = assets.filter(a=>a.score < 90);
+  let reemplazos = 0, upgrades = 0;
+  below90.forEach(a=>{
+    if(a.overall==='critical'){
+      reemplazos += a.costo_cotizado || COMMERCIAL_COST.replace;
+    } else {
+      let c = 0;
+      if(a.levels.ram==='warning') c += COMMERCIAL_COST.ram;
+      if(a.levels.storage==='warning') c += COMMERCIAL_COST.storage;
+      if(a.levels.security!=='optimal') c += COMMERCIAL_COST.os;
+      upgrades += a.costo_cotizado || (c || COMMERCIAL_COST.ram);
+    }
+  });
+  return { equiposAfectados: below90.length, reemplazos, upgrades, total: reemplazos+upgrades };
+}
+
 const VIEW_TITLES = {
   dashboard: ['Panel Ejecutivo', a => DB.active + ' · ' + a.length + ' equipos registrados'],
   table: ['Inventario Detallado', a => DB.active + ' · ' + a.length + ' equipos'],
@@ -919,13 +968,22 @@ function renderDashboard(assets){
   const client = activeClient();
   const last = client.history[client.history.length-1];
   const prev = client.history[client.history.length-2];
-  let trendHTML = '';
-  if(prev){
-    const delta = last.avg - prev.avg;
+
+  function trendRow(curr, prevVal, invert, suffix){
+    if(prevVal==null) return '';
+    const delta = curr - prevVal;
+    const good = invert ? delta<0 : delta>0;
     const arrow = delta>0?'▲':delta<0?'▼':'—';
-    const color = delta>0?'#047857':delta<0?'var(--critical)':'var(--muted)';
-    trendHTML = `<div class="kpi-sub" style="color:${color};font-weight:700;">${arrow} ${Math.abs(delta)} pts desde la última carga (${new Date(prev.date).toLocaleDateString('es-PE')})</div>`;
+    const color = delta===0?'var(--muted)':(good?'#047857':'var(--critical)');
+    return `<div class="kpi-sub" style="color:${color};font-weight:700;">${arrow} ${Math.abs(delta)}${suffix||''} vs. carga anterior</div>`;
   }
+  const trendAvg = prev ? trendRow(last.avg, prev.avg, false, ' pts') : '';
+  const trendCrit = prev ? trendRow(last.critical, prev.critical, true) : '';
+  const trendNoAv = prev ? trendRow(k.noAv, prev.noAv, true) : '';
+
+  const lifecycle = computeLifecycleMatrix(assets);
+  const compliance = computeComplianceLights(assets);
+  const commercial = computeCommercialPlan(assets);
 
   const root = document.getElementById('viewRoot');
   root.innerHTML = `
@@ -933,18 +991,37 @@ function renderDashboard(assets){
       <div class="kpi" style="--accent:var(--blue)">
         <div class="kpi-label">Salud del parque</div>
         <div class="kpi-value">${fmtPct(k.avg)}</div>
-        ${trendHTML || '<div class="kpi-sub">Puntaje promedio ponderado</div>'}
+        ${trendAvg || '<div class="kpi-sub">Puntaje promedio ponderado</div>'}
       </div>
       <div class="kpi" style="--accent:var(--muted)"><div class="kpi-label">Equipos activos</div><div class="kpi-value">${k.total}</div><div class="kpi-sub">Total inventariado</div></div>
-      <div class="kpi" style="--accent:var(--critical)"><div class="kpi-label">Críticos</div><div class="kpi-value" style="color:var(--critical)">${k.critical}</div><div class="kpi-sub">Reemplazo inmediato</div></div>
+      <div class="kpi" style="--accent:var(--critical)">
+        <div class="kpi-label">Críticos</div><div class="kpi-value" style="color:var(--critical)">${k.critical}</div>
+        ${trendCrit || '<div class="kpi-sub">Reemplazo inmediato</div>'}
+      </div>
       <div class="kpi" style="--accent:var(--warning)"><div class="kpi-label">Oportunidad de mejora</div><div class="kpi-value" style="color:#B45309">${k.warning}</div><div class="kpi-sub">RAM / SSD recomendado</div></div>
-      <div class="kpi" style="--accent:var(--critical)"><div class="kpi-label">Riesgo seguridad</div><div class="kpi-value" style="color:var(--critical)">${k.noAv}</div><div class="kpi-sub">Sin antivirus / SO no soportado</div></div>
+      <div class="kpi" style="--accent:var(--critical)">
+        <div class="kpi-label">Riesgo seguridad</div><div class="kpi-value" style="color:var(--critical)">${k.noAv}</div>
+        ${trendNoAv || '<div class="kpi-sub">Sin antivirus / SO no soportado</div>'}
+      </div>
     </div>
+
+    ${commercialPlanHTML(commercial)}
 
     <div class="charts-row">
       <div class="chart-card"><h3>Distribución de riesgo</h3><div class="wrap"><canvas id="chartRisk"></canvas></div></div>
       <div class="chart-card"><h3>Generación de procesador</h3><div class="wrap"><canvas id="chartCpu"></canvas></div></div>
       <div class="chart-card"><h3>Tecnología de almacenamiento</h3><div class="wrap"><canvas id="chartStorage"></canvas></div></div>
+    </div>
+
+    <div class="charts-row" style="grid-template-columns:1.15fr 1fr;">
+      <div class="panel">
+        <div class="panel-head"><h3>Matriz de Obsolescencia y Ciclo de Vida</h3></div>
+        <div style="padding:14px 18px;">${lifecycleMatrixHTML(lifecycle)}</div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Semáforo de Cumplimiento</h3></div>
+        <div style="padding:14px 18px;">${complianceLightsHTML(compliance)}</div>
+      </div>
     </div>
 
     <div class="charts-row" style="grid-template-columns:1.3fr 1fr;">
@@ -967,6 +1044,11 @@ function renderDashboard(assets){
   `;
   drawCharts(assets);
   bindRowClicks();
+  const btnPlan = document.getElementById('btnPlanToReport');
+  if(btnPlan) btnPlan.onclick = ()=>{
+    renderExecReport();
+    document.getElementById('reportOverlay').classList.add('show');
+  };
 }
 
 function drawCharts(assets){
@@ -1008,6 +1090,87 @@ function drawCharts(assets){
 }
 
 /* ---------- Tabla ---------- */
+function commercialPlanHTML(c){
+  if(!c.equiposAfectados){
+    return `<div class="panel" style="margin-bottom:22px;border-color:#A7F3D0;background:linear-gradient(135deg,#ECFDF5,#F8FAFC);">
+      <div style="padding:20px;font-size:13.5px;color:#047857;font-weight:700;">✓ El parque ya se encuentra por encima del 90% de salud objetivo. Sin inversión requerida.</div>
+    </div>`;
+  }
+  return `
+  <div class="panel" style="margin-bottom:22px;border-color:#BFDBFE;background:linear-gradient(135deg,#EFF4FF,#F8FAFC);">
+    <div style="padding:20px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+        <div>
+          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--blue);margin-bottom:4px;">💼 Plan de Acción Comercial</div>
+          <div style="font-size:13px;color:var(--muted);max-width:520px;">Inversión estimada para llevar el parque de "${escapeHtml(DB.active)}" a 90%+ de salud tecnológica (${c.equiposAfectados} equipos por debajo del objetivo).</div>
+        </div>
+        <button class="btn btn-primary no-print" id="btnPlanToReport" style="white-space:nowrap;">Generar propuesta →</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:16px;">
+        <div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;">
+          <div style="font-size:10.5px;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:4px;">Inversión en actualizaciones</div>
+          <div style="font-size:20px;font-weight:800;color:#B45309;">S/ ${c.upgrades.toLocaleString('es-PE')}</div>
+        </div>
+        <div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;">
+          <div style="font-size:10.5px;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:4px;">Inversión en reemplazos</div>
+          <div style="font-size:20px;font-weight:800;color:var(--critical);">S/ ${c.reemplazos.toLocaleString('es-PE')}</div>
+        </div>
+        <div style="background:#fff;border:1px solid var(--blue);border-radius:10px;padding:14px;">
+          <div style="font-size:10.5px;text-transform:uppercase;color:var(--blue);font-weight:700;margin-bottom:4px;">Inversión total propuesta</div>
+          <div style="font-size:20px;font-weight:800;color:var(--blue);">S/ ${c.total.toLocaleString('es-PE')}</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function lifecycleMatrixHTML(l){
+  const total = l.eol.length + l.repotenciable.length + l.estable.length || 1;
+  function bar(label, count, color, desc){
+    const pct = Math.round(count/total*100);
+    return `
+    <div style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px;">
+        <span style="font-weight:700;">${label}</span><span style="color:var(--muted);">${count} equipos (${pct}%)</span>
+      </div>
+      <div style="background:#F1F5F9;border-radius:100px;height:9px;overflow:hidden;margin-bottom:4px;">
+        <div style="background:${color};height:100%;width:${pct}%;border-radius:100px;"></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);">${desc}</div>
+    </div>`;
+  }
+  return `
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:18px;padding-bottom:16px;border-bottom:1px solid var(--line);">
+      <div style="font-size:32px;font-weight:800;color:${l.capacidadActualizacion>=40?'#047857':'#B45309'};">${l.capacidadActualizacion}%</div>
+      <div style="font-size:12.5px;color:var(--muted);">Capacidad de actualización del parque — equipos donde una mejora de componentes (RAM/SSD) evita el reemplazo completo.</div>
+    </div>
+    ${bar('Fin de vida (EOL) — reemplazo inmediato', l.eol.length, 'var(--critical)', 'CPU obsoleta: ningún upgrade de componentes es económicamente viable.')}
+    ${bar('Repotenciable — upgrade de componentes', l.repotenciable.length, 'var(--warning)', 'CPU vigente pero RAM y/o almacenamiento limitan el rendimiento.')}
+    ${bar('Estable — sin acción requerida', l.estable.length, 'var(--optimal)', 'Equipo dentro de parámetros óptimos.')}
+  `;
+}
+
+function complianceLightsHTML(c){
+  function light(label, value, ok, warn){
+    const color = value<=ok?'var(--optimal)':value<=warn?'var(--warning)':'var(--critical)';
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+      <div style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0;"></div>
+      <div style="flex:1;font-size:12.5px;">${label}</div>
+      <div style="font-weight:800;font-size:14px;color:${color};">${value}</div>
+    </div>`;
+  }
+  const licScopeNote = c.scope==='cliente' ? `de ${escapeHtml(DB.active)}` : `de toda la cartera (sin licencias vinculadas al nombre "${escapeHtml(DB.active)}")`;
+  return `
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Parches y sistema operativo</div>
+    ${light('Equipos con SO fuera de soporte', c.soLegacy, 0, Math.ceil(c.totalEq*0.15))}
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin:16px 0 10px;">Vencimiento de licencias (${licScopeNote})</div>
+    ${light('Vencidas', c.vencidas, 0, 2)}
+    ${light('Vencen en 30 días', c.d30, 0, 3)}
+    ${light('Vencen en 60 días', c.d60, 2, 5)}
+    ${light('Vencen en 90 días', c.d90, 3, 8)}
+  `;
+}
+
 function areaHealthHTML(rows){
   if(!rows.length) return `<div style="color:var(--muted);font-size:12.5px;">Sin datos de área.</div>`;
   return rows.map(r=>{
@@ -1481,10 +1644,75 @@ function narrativeParagraph(k, assets){
     `Adicionalmente, ${k.noAv} equipos presentan riesgos de seguridad por ausencia de antivirus activo o sistema operativo fuera de soporte del fabricante.`;
 }
 
+function riskNarrative(lifecycle, compliance){
+  const eolPct = lifecycle.eol.length + lifecycle.repotenciable.length + lifecycle.estable.length
+    ? Math.round((lifecycle.eol.length/(lifecycle.eol.length+lifecycle.repotenciable.length+lifecycle.estable.length))*100) : 0;
+  let parte1 = `El ${eolPct}% del parque se encuentra en fin de vida útil, con componentes de procesamiento que no admiten una actualización costo-efectiva. `+
+    `Un ${lifecycle.capacidadActualizacion}% adicional del parque es repotenciable mediante actualización de memoria o almacenamiento, evitando así un reemplazo completo.`;
+  let parte2 = compliance.vencidas || compliance.d30
+    ? ` En materia de licenciamiento, se identificaron ${compliance.vencidas} licencias vencidas y ${compliance.d30} próximas a vencer en los siguientes 30 días, lo que representa un riesgo de continuidad operativa y cumplimiento normativo.`
+    : ` El licenciamiento de software se encuentra al día, sin vencimientos críticos en el corto plazo.`;
+  return parte1 + parte2;
+}
+
+function exportReportExcel(){
+  const assets = activeAssets();
+  const k = computeKPIs(assets);
+  const lifecycle = computeLifecycleMatrix(assets);
+  const commercial = computeCommercialPlan(assets);
+
+  const wsResumen = XLSX.utils.aoa_to_sheet([
+    ['Informe Ejecutivo de Diagnóstico Tecnológico'],
+    ['Cliente', DB.active],
+    ['Fecha', new Date().toLocaleDateString('es-PE')],
+    [],
+    ['Métrica','Valor'],
+    ['Salud del parque (%)', k.avg],
+    ['Equipos evaluados', k.total],
+    ['Equipos críticos', k.critical],
+    ['Con oportunidad de mejora', k.warning],
+    ['Riesgo de seguridad', k.noAv],
+    ['Equipos en fin de vida (EOL)', lifecycle.eol.length],
+    ['Equipos repotenciables', lifecycle.repotenciable.length],
+    ['Capacidad de actualización (%)', lifecycle.capacidadActualizacion],
+    [],
+    ['Inversión en actualizaciones (S/)', commercial.upgrades],
+    ['Inversión en reemplazos (S/)', commercial.reemplazos],
+    ['Inversión total propuesta (S/)', commercial.total]
+  ]);
+
+  const wsEquipos = XLSX.utils.json_to_sheet(assets.map(a=>({
+    ID:a.id, Hostname:a.hostname, Usuario:a.usuario, Área:a.area,
+    CPU:(a.cpu.family||'')+(a.cpu.gen!=null?' Gen'+a.cpu.gen:''),
+    'RAM (GB)':a.ram.gb, Almacenamiento:(a.disco_principal.type||'')+(a.disco_principal.gb?' '+a.disco_principal.gb+'GB':''),
+    'Sistema Operativo':a.so.name, Puntaje:a.score, Estado:a.overall,
+    'Estado de gestión':a.estado_gestion||'Pendiente', 'Costo cotizado (S/)':a.costo_cotizado||''
+  })));
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen Ejecutivo');
+  XLSX.utils.book_append_sheet(wb, wsEquipos, 'Inventario Completo');
+  const out = XLSX.write(wb, { type:'array', bookType:'xlsx' });
+  const blob = new Blob([out], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'informe_ejecutivo_'+DB.active.replace(/\s+/g,'_')+'_'+new Date().toISOString().slice(0,10)+'.xlsx';
+  a.click(); URL.revokeObjectURL(url);
+}
+
+function roiNarrative(commercial){
+  if(!commercial.equiposAfectados) return 'El parque tecnológico ya opera por encima del umbral de salud recomendado (90%). No se requiere inversión adicional en el corto plazo; se recomienda mantener un monitoreo periódico.';
+  return `Se recomienda una inversión total de S/ ${commercial.total.toLocaleString('es-PE')} para llevar el parque tecnológico de "${DB.active}" a un nivel de salud igual o superior al 90%. `+
+    `Priorizar primero los ${commercial.equiposAfectados} equipos identificados reduce el riesgo de fallas no planificadas, mejora la productividad de los usuarios finales y disminuye la exposición a incidentes de seguridad asociados a hardware y software obsoletos.`;
+}
+
 function renderExecReport(){
   const assets = activeAssets();
   const client = activeClient();
   const k = computeKPIs(assets);
+  const lifecycle = computeLifecycleMatrix(assets);
+  const compliance = computeComplianceLights(assets);
+  const commercial = computeCommercialPlan(assets);
   const critical = [...assets].filter(a=>a.overall==='critical').sort((a,b)=>a.score-b.score);
   const dateStr = new Date().toLocaleDateString('es-PE', {year:'numeric', month:'long', day:'numeric'});
 
@@ -1522,6 +1750,30 @@ function renderExecReport(){
           <tbody>${critRows || '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:14px;">No hay equipos en estado crítico</td></tr>'}</tbody>
         </table>
         ${critical.length>20 ? `<div style="font-size:11px;color:var(--muted);margin-top:8px;">Mostrando 20 de ${critical.length} equipos críticos. Ver detalle completo en el inventario adjunto.</div>` : ''}
+      </div>
+
+      <div class="report-section">
+        <h3>Análisis de riesgos</h3>
+        <p class="report-narrative">${riskNarrative(lifecycle, compliance)}</p>
+        <div class="report-summary-grid">
+          <div class="report-kpi"><b style="color:var(--critical)">${lifecycle.eol.length}</b><span>Equipos en fin de vida (EOL)</span></div>
+          <div class="report-kpi"><b style="color:#B45309">${lifecycle.repotenciable.length}</b><span>Repotenciables</span></div>
+          <div class="report-kpi"><b>${lifecycle.capacidadActualizacion}%</b><span>Capacidad de actualización</span></div>
+          <div class="report-kpi"><b style="color:var(--critical)">${compliance.vencidas + compliance.d30}</b><span>Licencias vencidas o por vencer (30d)</span></div>
+        </div>
+      </div>
+
+      <div class="report-section">
+        <h3>Plan de inversión y ROI de renovación</h3>
+        <p class="report-narrative">${roiNarrative(commercial)}</p>
+        <table>
+          <thead><tr><th>Concepto</th><th>Equipos</th><th>Inversión estimada</th></tr></thead>
+          <tbody>
+            <tr><td>Actualización de componentes (RAM/SSD/SO)</td><td>${assets.filter(a=>a.overall==='warning').length}</td><td>S/ ${commercial.upgrades.toLocaleString('es-PE')}</td></tr>
+            <tr><td>Reemplazo completo de equipo</td><td>${assets.filter(a=>a.overall==='critical').length}</td><td>S/ ${commercial.reemplazos.toLocaleString('es-PE')}</td></tr>
+            <tr style="font-weight:800;"><td>Total propuesto</td><td>${commercial.equiposAfectados}</td><td>S/ ${commercial.total.toLocaleString('es-PE')}</td></tr>
+          </tbody>
+        </table>
       </div>
 
       <div class="report-footer">Informe generado automáticamente a partir del inventario tecnológico registrado. Los costos y plazos son referenciales y deben validarse con una cotización formal.</div>
@@ -2014,6 +2266,7 @@ function init(){
   };
   document.getElementById('btnCloseReport').onclick = ()=>document.getElementById('reportOverlay').classList.remove('show');
   document.getElementById('btnPrintReport').onclick = ()=>window.print();
+  document.getElementById('btnExportExcel').onclick = exportReportExcel;
   document.getElementById('btnLogoUpload').onclick = ()=>document.getElementById('logoInput').click();
   document.getElementById('logoInput').onchange = e=>{
     const f = e.target.files[0]; if(!f) return;
