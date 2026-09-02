@@ -215,6 +215,17 @@ tbody tr:last-child td{border-bottom:none;}
 .form-field input, .form-field select, .form-field textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;}
 
 /* ---------- Sistema ---------- */
+/* ---------- Centro de Alertas ---------- */
+.alerts-banner{border:1px solid #FCA5A5;background:linear-gradient(135deg,#FEF2F2,#FFF7F0);border-radius:12px;padding:12px 16px;margin-bottom:18px;}
+.alerts-banner.warn-only{border-color:#FDE68A;background:linear-gradient(135deg,#FFFBEB,#FFFDF5);}
+.alerts-banner-head{display:flex;justify-content:space-between;align-items:center;cursor:pointer;}
+.alerts-banner-title{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--critical);}
+.alerts-banner.warn-only .alerts-banner-title{color:#B45309;}
+.alerts-close{background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;padding:2px 6px;}
+.alerts-list{margin-top:10px;display:flex;flex-direction:column;gap:6px;}
+.alerts-item{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink);}
+.alerts-item .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+
 @media(max-width:900px){
   .sidebar{display:none;}
   .main{padding:18px;}
@@ -279,6 +290,8 @@ tbody tr:last-child td{border-bottom:none;}
   </aside>
 
   <main class="main">
+    <div class="alerts-banner" id="alertsCenter" style="display:none;"></div>
+
     <div class="topbar">
       <div>
         <h1 id="pageTitle">Panel Ejecutivo</h1>
@@ -398,7 +411,7 @@ let editingLicense = null;
 let charts = {};
 let editingAsset = null;
 
-function emptyClient(){ return { assets: [], history: [], logo: null }; }
+function emptyClient(){ return { assets: [], history: [], logo: null, columnAliases: { inventory: {}, licenses: {} } }; }
 
 function loadDB(){
   try{
@@ -428,7 +441,9 @@ function loadDB(){
 function saveDB(){ localStorage.setItem(STORE_KEY, JSON.stringify(DB)); }
 function activeClient(){
   if(!DB.clients[DB.active]) DB.active = Object.keys(DB.clients)[0];
-  return DB.clients[DB.active];
+  const c = DB.clients[DB.active];
+  if(!c.columnAliases) c.columnAliases = { inventory: {}, licenses: {} };
+  return c;
 }
 function activeAssets(){ return activeClient().assets; }
 function setActiveAssets(list){ activeClient().assets = list; saveDB(); }
@@ -460,11 +475,11 @@ const HEADER_MAP = {
 };
 
 function normalizeHeader(h){ return String(h||'').trim().toLowerCase().replace(/\s+/g,' '); }
-function buildColumnMap(headers){
+function buildColumnMap(headers, extraAliases){
   const map = {};
   const normHeaders = headers.map(normalizeHeader);
   Object.keys(HEADER_MAP).forEach(field=>{
-    const options = HEADER_MAP[field];
+    const options = HEADER_MAP[field].concat(((extraAliases&&extraAliases[field])||[]).map(normalizeHeader));
     let idx = normHeaders.findIndex(h => options.includes(h));
     if(idx === -1) idx = normHeaders.findIndex(h => options.some(o => h.includes(o)));
     if(idx !== -1) map[field] = headers[idx];
@@ -761,7 +776,7 @@ function pushHistorySnapshot(assets){
 
 function ingestRows(rows, headers){
   if(!rows.length){ showToast('El archivo no contiene filas.'); return; }
-  const colMap = buildColumnMap(headers);
+  const colMap = buildColumnMap(headers, activeClient().columnAliases.inventory);
   const mappedCount = Object.keys(colMap).length;
   const existing = activeAssets();
   const existingMeta = {};
@@ -898,6 +913,61 @@ function computeCommercialPlan(assets){
   return { equiposAfectados: below90.length, reemplazos, upgrades, total: reemplazos+upgrades };
 }
 
+/* ---------- Centro de Alertas ---------- */
+let alertsDismissed = false;
+
+function computeAlerts(){
+  const alerts = [];
+  const client = activeClient();
+  const assets = client.assets;
+
+  // Equipos que cruzaron a crítico desde la última carga (cliente activo)
+  if(client.history.length >= 2){
+    const last = client.history[client.history.length-1];
+    const prev = client.history[client.history.length-2];
+    let newCritical = 0;
+    assets.forEach(a=>{
+      const before = prev.byId && prev.byId[a.id];
+      if(before && before.overall!=='critical' && a.overall==='critical') newCritical++;
+    });
+    if(newCritical>0) alerts.push({ severity:'critical', text: `${newCritical} equipo${newCritical>1?'s':''} de "${DB.active}" pasó${newCritical>1?'ron':''} a estado crítico desde la última carga.` });
+  }
+
+  // Licencias (alcance global, ya que el módulo no es por cliente)
+  DB.licenses.forEach(rescoreLicense);
+  const vencidas = DB.licenses.filter(l=>l.estado_calc==='vencida').length;
+  const por15 = DB.licenses.filter(l=>l.estado_calc==='por15').length;
+  if(vencidas>0) alerts.push({ severity:'critical', text: `${vencidas} licencia${vencidas>1?'s':''} vencida${vencidas>1?'s':''} en la cartera — requiere${vencidas>1?'n':''} renovación inmediata.` });
+  if(por15>0) alerts.push({ severity:'warning', text: `${por15} licencia${por15>1?'s':''} vence${por15>1?'n':''} en los próximos ${DB.settings.licenses.alertDays1} días.` });
+
+  // Equipos críticos sin gestión iniciada (cliente activo)
+  const criticosSinGestion = assets.filter(a=>a.overall==='critical' && (a.estado_gestion||'Pendiente')==='Pendiente').length;
+  if(criticosSinGestion>0) alerts.push({ severity:'warning', text: `${criticosSinGestion} equipo${criticosSinGestion>1?'s':''} crítico${criticosSinGestion>1?'s':''} de "${DB.active}" sin estado de gestión iniciado.` });
+
+  return alerts;
+}
+
+function renderAlertsCenter(){
+  const box = document.getElementById('alertsCenter');
+  if(!box) return;
+  if(alertsDismissed){ box.style.display='none'; return; }
+  const alerts = computeAlerts();
+  if(!alerts.length){ box.style.display='none'; return; }
+  const hasCritical = alerts.some(a=>a.severity==='critical');
+  box.className = 'alerts-banner' + (hasCritical ? '' : ' warn-only');
+  box.style.display = 'block';
+  box.innerHTML = `
+    <div class="alerts-banner-head" id="alertsToggle">
+      <div class="alerts-banner-title">${hasCritical?'🚨':'⚠️'} ${alerts.length} alerta${alerts.length>1?'s':''} requiere${alerts.length>1?'n':''} tu atención</div>
+      <button class="alerts-close" id="alertsCloseBtn">✕</button>
+    </div>
+    <div class="alerts-list">
+      ${alerts.map(a=>`<div class="alerts-item"><span class="dot" style="background:${a.severity==='critical'?'var(--critical)':'var(--warning)'}"></span>${escapeHtml(a.text)}</div>`).join('')}
+    </div>
+  `;
+  document.getElementById('alertsCloseBtn').onclick = e=>{ e.stopPropagation(); alertsDismissed = true; box.style.display='none'; };
+}
+
 const VIEW_TITLES = {
   dashboard: ['Panel Ejecutivo', a => DB.active + ' · ' + a.length + ' equipos registrados'],
   table: ['Inventario Detallado', a => DB.active + ' · ' + a.length + ' equipos'],
@@ -909,6 +979,7 @@ const VIEW_TITLES = {
 function render(){
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.view===currentView));
   renderClientSelect();
+  renderAlertsCenter();
   const assets = activeAssets();
   const root = document.getElementById('viewRoot');
 
@@ -1033,11 +1104,20 @@ function renderDashboard(assets){
     <div class="charts-row" style="grid-template-columns:1.3fr 1fr;">
       <div class="panel">
         <div class="panel-head"><h3>Salud por Área</h3></div>
-        <div style="padding:14px 18px;">${areaHealthHTML(computeAreaHealth(assets))}</div>
+        <div class="wrap" style="height:${Math.max(180, computeAreaHealth(assets).length*38)}px;padding:14px 18px;"><canvas id="chartAreaHealth"></canvas></div>
       </div>
       <div class="panel">
         <div class="panel-head"><h3>Cobertura de seguridad</h3></div>
-        <div style="padding:14px 18px;">${securityCoverageHTML(computeSecurityCoverage(assets))}</div>
+        <div style="display:flex;padding:14px 10px 4px;gap:4px;">
+          <div style="flex:1;text-align:center;">
+            <div class="wrap" style="height:150px;"><canvas id="gaugeAntivirus"></canvas></div>
+            <div style="font-size:11.5px;font-weight:600;color:var(--muted);margin-top:-6px;">Antivirus activo</div>
+          </div>
+          <div style="flex:1;text-align:center;">
+            <div class="wrap" style="height:150px;"><canvas id="gaugeSO"></canvas></div>
+            <div style="font-size:11.5px;font-weight:600;color:var(--muted);margin-top:-6px;">SO soportado</div>
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -1085,6 +1165,58 @@ function drawCharts(assets){
     data:{ labels:Object.keys(stoBuckets), datasets:[{ data:Object.values(stoBuckets), backgroundColor:Object.keys(stoBuckets).map(k=>stoColors[k]||'#CBD5E1'), borderWidth:0 }] },
     options:{ maintainAspectRatio:false, plugins:{legend:{position:'bottom',labels:{boxWidth:9,font:{size:11}}}} }
   });
+
+  // Salud por Área — barras horizontales, ordenadas de peor a mejor
+  const areaEl = document.getElementById('chartAreaHealth');
+  if(areaEl){
+    const areaRows = computeAreaHealth(assets);
+    const colorFor = v => v>=80?'#10B981':v>=60?'#F59E0B':'#EF4444';
+    charts.area = new Chart(areaEl, {
+      type:'bar',
+      data:{
+        labels: areaRows.map(r=>r.area),
+        datasets:[{ data: areaRows.map(r=>r.avg), backgroundColor: areaRows.map(r=>colorFor(r.avg)), borderRadius:4, maxBarThickness:22 }]
+      },
+      options:{
+        indexAxis:'y', maintainAspectRatio:false,
+        plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx => {
+          const r = areaRows[ctx.dataIndex];
+          return `${r.avg}% salud · ${r.total} equipos${r.critical?' · '+r.critical+' crítico'+(r.critical>1?'s':''):''}`;
+        } } } },
+        scales:{ x:{ min:0, max:100, ticks:{ callback:v=>v+'%' } }, y:{ ticks:{ font:{size:11} } } }
+      }
+    });
+  }
+
+  // Cobertura de seguridad — gauges tipo velocímetro (medio-donut)
+  function gaugeColor(pct){ return pct>=80?'#10B981':pct>=50?'#F59E0B':'#EF4444'; }
+  function drawGauge(canvasId, pct){
+    const el = document.getElementById(canvasId);
+    if(!el) return null;
+    return new Chart(el, {
+      type:'doughnut',
+      data:{ datasets:[{ data:[pct, 100-pct], backgroundColor:[gaugeColor(pct), '#F1F5F9'], borderWidth:0 }] },
+      options:{
+        maintainAspectRatio:false, circumference:180, rotation:270, cutout:'75%',
+        plugins:{ legend:{display:false}, tooltip:{enabled:false} }
+      },
+      plugins:[{
+        id: 'gaugeLabel_'+canvasId,
+        afterDraw(chart){
+          const {ctx, chartArea:{width,height,top}} = chart;
+          ctx.save();
+          ctx.font = '800 22px Inter, sans-serif';
+          ctx.fillStyle = gaugeColor(pct);
+          ctx.textAlign = 'center';
+          ctx.fillText(pct+'%', width/2, top+height*0.82);
+          ctx.restore();
+        }
+      }]
+    });
+  }
+  const secCoverage = computeSecurityCoverage(assets);
+  charts.gaugeAv = drawGauge('gaugeAntivirus', secCoverage.avPct);
+  charts.gaugeSO = drawGauge('gaugeSO', secCoverage.soPct);
 }
 
 /* ---------- Tabla ---------- */
@@ -1167,42 +1299,6 @@ function complianceLightsHTML(c){
     ${light('Vencen en 60 días', c.d60, 2, 5)}
     ${light('Vencen en 90 días', c.d90, 3, 8)}
   `;
-}
-
-function areaHealthHTML(rows){
-  if(!rows.length) return `<div style="color:var(--muted);font-size:12.5px;">Sin datos de área.</div>`;
-  return rows.map(r=>{
-    const color = r.avg>=80?'#10B981':r.avg>=60?'#F59E0B':'#EF4444';
-    return `
-    <div style="margin-bottom:12px;">
-      <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px;">
-        <span style="font-weight:600;">${escapeHtml(r.area)}</span>
-        <span style="color:var(--muted);">${r.total} equipos${r.critical?' · '+r.critical+' crítico'+(r.critical>1?'s':''):''}</span>
-      </div>
-      <div style="background:#F1F5F9;border-radius:100px;height:8px;overflow:hidden;">
-        <div style="background:${color};height:100%;width:${r.avg}%;border-radius:100px;"></div>
-      </div>
-    </div>
-    <div style="text-align:right;font-size:11px;color:var(--muted);margin-top:-8px;margin-bottom:6px;">${r.avg}%</div>`;
-  }).join('');
-}
-
-function securityCoverageHTML(s){
-  function row(label, pct, count, total, color){
-    return `
-    <div style="margin-bottom:16px;">
-      <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px;">
-        <span style="font-weight:600;">${label}</span>
-        <span style="color:var(--muted);">${count} de ${total}</span>
-      </div>
-      <div style="background:#F1F5F9;border-radius:100px;height:10px;overflow:hidden;">
-        <div style="background:${color};height:100%;width:${pct}%;border-radius:100px;"></div>
-      </div>
-      <div style="text-align:right;font-size:16px;font-weight:800;color:${color};margin-top:4px;">${pct}%</div>
-    </div>`;
-  }
-  return row('Antivirus activo', s.avPct, s.avActive, s.total, s.avPct>=80?'#10B981':s.avPct>=50?'#F59E0B':'#EF4444')
-       + row('Sistema operativo soportado', s.soPct, s.soSupported, s.total, s.soPct>=80?'#10B981':s.soPct>=50?'#F59E0B':'#EF4444');
 }
 
 function improvedAssetsHTML(list){
@@ -1662,6 +1758,70 @@ function renderCompareView(){
 }
 
 /* ---------- Configuración de reglas ---------- */
+/* ---------- Plantillas de columnas (alias por cliente) ---------- */
+const INVENTORY_FIELD_LABELS = {
+  id:'ID', area:'Área', usuario:'Usuario', tipo:'Tipo de equipo', hostname:'Hostname', marca:'Marca', modelo:'Modelo', serie:'Serie',
+  procesador:'Procesador', placa:'Placa madre', memoria:'Memoria RAM', video:'Tarjeta de video',
+  disco_principal:'Disco principal', disco_secundario:'Disco secundario', bateria:'Estado de batería',
+  so:'Sistema operativo', office:'Office', antivirus:'Antivirus', observaciones:'Observaciones'
+};
+const LICENSE_FIELD_LABELS = {
+  producto:'Producto', fecha_compra:'Fecha de compra', cliente:'Cliente', precio:'Precio', moneda:'Moneda',
+  cantidad:'Cantidad', vencimiento:'Vencimiento', estado:'Estado', categoria:'Categoría', equipo:'Equipo', pedido:'Pedido', notas:'Notas'
+};
+function templateFieldOptions(labels){
+  return Object.entries(labels).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
+}
+function renderTemplateChips(listElId, aliasesObj, labels, onRemove){
+  const el = document.getElementById(listElId);
+  const chips = [];
+  Object.keys(aliasesObj).forEach(field=>{
+    (aliasesObj[field]||[]).forEach(alias=>{
+      chips.push(`<span style="display:inline-flex;align-items:center;gap:5px;background:#F1F5F9;border-radius:100px;padding:4px 10px;font-size:11px;">
+        <b>${labels[field]||field}:</b> ${escapeHtml(alias)}
+        <button data-field="${field}" data-alias="${escapeHtml(alias)}" style="border:none;background:none;cursor:pointer;color:var(--muted);font-weight:700;">✕</button>
+      </span>`);
+    });
+  });
+  el.innerHTML = chips.length ? chips.join('') : `<span style="font-size:11.5px;color:var(--muted);">Sin alias personalizados aún.</span>`;
+  el.querySelectorAll('button[data-field]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const field = btn.dataset.field, alias = btn.dataset.alias;
+      aliasesObj[field] = (aliasesObj[field]||[]).filter(a=>a!==alias);
+      if(!aliasesObj[field].length) delete aliasesObj[field];
+      saveDB();
+      renderTemplateChips(listElId, aliasesObj, labels, onRemove);
+    };
+  });
+}
+function bindTemplateSection(){
+  const client = activeClient();
+  renderTemplateChips('tplInvList', client.columnAliases.inventory, INVENTORY_FIELD_LABELS);
+  renderTemplateChips('tplLicList', client.columnAliases.licenses, LICENSE_FIELD_LABELS);
+  document.getElementById('btnAddTplInv').onclick = ()=>{
+    const field = document.getElementById('tplInvField').value;
+    const alias = document.getElementById('tplInvAlias').value.trim();
+    if(!alias){ showToast('Escribe el nombre de la columna'); return; }
+    client.columnAliases.inventory[field] = client.columnAliases.inventory[field] || [];
+    if(!client.columnAliases.inventory[field].includes(alias)) client.columnAliases.inventory[field].push(alias);
+    saveDB();
+    document.getElementById('tplInvAlias').value = '';
+    renderTemplateChips('tplInvList', client.columnAliases.inventory, INVENTORY_FIELD_LABELS);
+    showToast('Alias agregado');
+  };
+  document.getElementById('btnAddTplLic').onclick = ()=>{
+    const field = document.getElementById('tplLicField').value;
+    const alias = document.getElementById('tplLicAlias').value.trim();
+    if(!alias){ showToast('Escribe el nombre de la columna'); return; }
+    client.columnAliases.licenses[field] = client.columnAliases.licenses[field] || [];
+    if(!client.columnAliases.licenses[field].includes(alias)) client.columnAliases.licenses[field].push(alias);
+    saveDB();
+    document.getElementById('tplLicAlias').value = '';
+    renderTemplateChips('tplLicList', client.columnAliases.licenses, LICENSE_FIELD_LABELS);
+    showToast('Alias agregado');
+  };
+}
+
 function renderSettingsView(){
   const s = DB.settings;
   const root = document.getElementById('viewRoot');
@@ -1701,6 +1861,32 @@ function renderSettingsView(){
         <div style="font-size:11px;color:var(--muted);">Se usa solo cuando el archivo importado no trae una fecha de vencimiento explícita.</div>
       </div>
     </div>
+
+    <div class="settings-card" style="margin-bottom:18px;">
+      <h4>🗂️ Plantillas de columnas — cliente activo: ${escapeHtml(DB.active)}</h4>
+      <div style="font-size:11.5px;color:var(--muted);margin-bottom:14px;">Si el Excel/CSV de este cliente usa nombres de columna distintos a los estándar (ej. "FECHA INICIO" en vez de "FECHA COMPRA"), agrégalos aquí una vez y se reconocerán automáticamente en futuras cargas de este mismo cliente.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Módulo Inventario</div>
+          <div style="display:flex;gap:6px;margin-bottom:10px;">
+            <select id="tplInvField" style="flex:1;border:1px solid var(--line);border-radius:7px;padding:6px 8px;font-size:12px;">${templateFieldOptions(INVENTORY_FIELD_LABELS)}</select>
+            <input type="text" id="tplInvAlias" placeholder="Nombre de columna" style="flex:1;border:1px solid var(--line);border-radius:7px;padding:6px 8px;font-size:12px;">
+            <button class="btn btn-ghost" id="btnAddTplInv" style="padding:6px 10px;">+</button>
+          </div>
+          <div id="tplInvList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Módulo Licencias</div>
+          <div style="display:flex;gap:6px;margin-bottom:10px;">
+            <select id="tplLicField" style="flex:1;border:1px solid var(--line);border-radius:7px;padding:6px 8px;font-size:12px;">${templateFieldOptions(LICENSE_FIELD_LABELS)}</select>
+            <input type="text" id="tplLicAlias" placeholder="Nombre de columna" style="flex:1;border:1px solid var(--line);border-radius:7px;padding:6px 8px;font-size:12px;">
+            <button class="btn btn-ghost" id="btnAddTplLic" style="padding:6px 10px;">+</button>
+          </div>
+          <div id="tplLicList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+        </div>
+      </div>
+    </div>
+
     <button class="btn btn-primary" id="btnSaveSettings">Guardar y recalcular todos los inventarios</button>
     <div style="font-size:11.5px;color:var(--muted);margin-top:10px;">Estos umbrales son globales y se aplican a todos los clientes. Al guardar, se vuelve a calcular el score y la clasificación de cada equipo ya cargado.</div>
   `;
@@ -1728,6 +1914,7 @@ function renderSettingsView(){
     currentView = 'dashboard';
     render();
   };
+  bindTemplateSection();
 }
 
 /* ============================================================
@@ -1966,6 +2153,22 @@ function renderExecReport(){
       </div>
 
       <div class="report-section">
+        <h3>Panorama visual del parque</h3>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;">
+          <div style="border:1px solid var(--line);border-radius:10px;padding:10px;"><div style="font-size:11px;font-weight:700;text-align:center;margin-bottom:6px;">Distribución de riesgo</div><div style="height:150px;"><canvas id="repChartRisk"></canvas></div></div>
+          <div style="border:1px solid var(--line);border-radius:10px;padding:10px;"><div style="font-size:11px;font-weight:700;text-align:center;margin-bottom:6px;">Generación de procesador</div><div style="height:150px;"><canvas id="repChartCpu"></canvas></div></div>
+          <div style="border:1px solid var(--line);border-radius:10px;padding:10px;"><div style="font-size:11px;font-weight:700;text-align:center;margin-bottom:6px;">Almacenamiento</div><div style="height:150px;"><canvas id="repChartStorage"></canvas></div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:14px;">
+          <div style="border:1px solid var(--line);border-radius:10px;padding:10px;"><div style="font-size:11px;font-weight:700;text-align:center;margin-bottom:6px;">Salud por área</div><div style="height:${Math.max(120,computeAreaHealth(assets).length*30)}px;"><canvas id="repChartArea"></canvas></div></div>
+          <div style="border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;">
+            <div style="flex:1;text-align:center;"><div style="font-size:11px;font-weight:700;margin-bottom:2px;">Antivirus activo</div><div style="height:100px;"><canvas id="repGaugeAv"></canvas></div></div>
+            <div style="flex:1;text-align:center;"><div style="font-size:11px;font-weight:700;margin-bottom:2px;">SO soportado</div><div style="height:100px;"><canvas id="repGaugeSO"></canvas></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="report-section">
         <h3>Equipos que requieren reemplazo prioritario</h3>
         <table>
           <thead><tr><th>Usuario</th><th>Área</th><th>Equipo</th><th>Motivo principal</th><th>Acción sugerida</th></tr></thead>
@@ -2001,6 +2204,72 @@ function renderExecReport(){
       <div class="report-footer">Informe generado automáticamente a partir del inventario tecnológico registrado. Los costos y plazos son referenciales y deben validarse con una cotización formal.</div>
     </div>
   `;
+  drawReportCharts(assets, lifecycle, compliance);
+}
+
+let reportCharts = {};
+function drawReportCharts(assets, lifecycle, compliance){
+  Object.values(reportCharts).forEach(c=>c && c.destroy());
+  reportCharts = {};
+
+  const critical = assets.filter(a=>a.overall==='critical').length;
+  const warning = assets.filter(a=>a.overall==='warning').length;
+  const optimal = assets.filter(a=>a.overall==='optimal').length;
+  const riskEl = document.getElementById('repChartRisk');
+  if(riskEl) reportCharts.risk = new Chart(riskEl, {
+    type:'doughnut',
+    data:{ labels:['Crítico','Advertencia','Óptimo'], datasets:[{ data:[critical,warning,optimal], backgroundColor:['#EF4444','#F59E0B','#10B981'], borderWidth:0 }] },
+    options:{ maintainAspectRatio:false, cutout:'65%', plugins:{legend:{position:'bottom',labels:{boxWidth:8,font:{size:9}}}} }
+  });
+
+  const genBuckets = {};
+  assets.forEach(a=>{
+    const g = a.cpu.gen==null ? 'N/D' : (a.cpu.vendor==='AMD' || a.cpu.vendor==='Apple' ? a.cpu.family : 'Gen '+a.cpu.gen);
+    genBuckets[g] = (genBuckets[g]||0)+1;
+  });
+  const genKeys = Object.keys(genBuckets).sort((a,b)=>(parseInt(a.replace(/\D/g,''))||-1)-(parseInt(b.replace(/\D/g,''))||-1));
+  const cpuEl = document.getElementById('repChartCpu');
+  if(cpuEl) reportCharts.cpu = new Chart(cpuEl, {
+    type:'bar',
+    data:{ labels:genKeys, datasets:[{ data:genKeys.map(k=>genBuckets[k]), backgroundColor:'#0052FF', borderRadius:3 }] },
+    options:{ maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:true, ticks:{precision:0,font:{size:8}}}, x:{ticks:{font:{size:8}}} } }
+  });
+
+  const stoBuckets = {};
+  assets.forEach(a=>{ const t = a.disco_principal.type || 'N/D'; stoBuckets[t] = (stoBuckets[t]||0)+1; });
+  const stoColors = { HDD:'#EF4444', SSD:'#F59E0B', NVMe:'#10B981', 'eMMC':'#94A3B8', 'Desconocido':'#CBD5E1', 'N/D':'#CBD5E1' };
+  const stoEl = document.getElementById('repChartStorage');
+  if(stoEl) reportCharts.storage = new Chart(stoEl, {
+    type:'pie',
+    data:{ labels:Object.keys(stoBuckets), datasets:[{ data:Object.values(stoBuckets), backgroundColor:Object.keys(stoBuckets).map(k=>stoColors[k]||'#CBD5E1'), borderWidth:0 }] },
+    options:{ maintainAspectRatio:false, plugins:{legend:{position:'bottom',labels:{boxWidth:8,font:{size:9}}}} }
+  });
+
+  const areaEl = document.getElementById('repChartArea');
+  if(areaEl){
+    const areaRows = computeAreaHealth(assets);
+    const colorFor = v => v>=80?'#10B981':v>=60?'#F59E0B':'#EF4444';
+    reportCharts.area = new Chart(areaEl, {
+      type:'bar',
+      data:{ labels:areaRows.map(r=>r.area), datasets:[{ data:areaRows.map(r=>r.avg), backgroundColor:areaRows.map(r=>colorFor(r.avg)), borderRadius:3 }] },
+      options:{ indexAxis:'y', maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{min:0,max:100,ticks:{font:{size:8},callback:v=>v+'%'}}, y:{ticks:{font:{size:9}}} } }
+    });
+  }
+
+  function gaugeColor(pct){ return pct>=80?'#10B981':pct>=50?'#F59E0B':'#EF4444'; }
+  function drawGauge(id, pct){
+    const el = document.getElementById(id);
+    if(!el) return null;
+    return new Chart(el, {
+      type:'doughnut',
+      data:{ datasets:[{ data:[pct,100-pct], backgroundColor:[gaugeColor(pct),'#F1F5F9'], borderWidth:0 }] },
+      options:{ maintainAspectRatio:false, circumference:180, rotation:270, cutout:'72%', plugins:{legend:{display:false},tooltip:{enabled:false}} },
+      plugins:[{ id:'lbl_'+id, afterDraw(chart){ const {ctx,chartArea:{width,height,top}} = chart; ctx.save(); ctx.font='800 15px Inter, sans-serif'; ctx.fillStyle=gaugeColor(pct); ctx.textAlign='center'; ctx.fillText(pct+'%', width/2, top+height*0.85); ctx.restore(); } }]
+    });
+  }
+  const secCoverage = computeSecurityCoverage(assets);
+  reportCharts.gaugeAv = drawGauge('repGaugeAv', secCoverage.avPct);
+  reportCharts.gaugeSO = drawGauge('repGaugeSO', secCoverage.soPct);
 }
 
 /* ============================================================
@@ -2023,11 +2292,11 @@ const LICENSE_HEADER_MAP = {
 };
 
 function normalizeLicHeader(h){ return String(h||'').trim().toLowerCase().replace(/\s+/g,' '); }
-function buildLicenseColumnMap(headers){
+function buildLicenseColumnMap(headers, extraAliases){
   const map = {};
   const normHeaders = headers.map(normalizeLicHeader);
   Object.keys(LICENSE_HEADER_MAP).forEach(field=>{
-    const options = LICENSE_HEADER_MAP[field];
+    const options = LICENSE_HEADER_MAP[field].concat(((extraAliases&&extraAliases[field])||[]).map(normalizeLicHeader));
     let idx = normHeaders.findIndex(h => options.includes(h));
     if(idx === -1) idx = normHeaders.findIndex(h => options.some(o => h.includes(o)));
     if(idx !== -1) map[field] = headers[idx];
@@ -2146,7 +2415,7 @@ function handleLicenseFile(file){
 
 function ingestLicenseRows(rows, headers){
   if(!rows.length){ showToast('El archivo no contiene filas.'); return; }
-  const colMap = buildLicenseColumnMap(headers);
+  const colMap = buildLicenseColumnMap(headers, activeClient().columnAliases.licenses);
   const mappedCount = Object.keys(colMap).length;
   const KNOWN_CATEGORIES = ['antivirus','office / productividad','sistema operativo','cloud / nube','otro'];
 
