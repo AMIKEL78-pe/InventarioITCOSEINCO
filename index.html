@@ -215,6 +215,9 @@ tbody tr:last-child td{border-bottom:none;}
 .form-field input, .form-field select, .form-field textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;}
 
 /* ---------- Sistema ---------- */
+.drill-bar{transition:opacity .12s;border-radius:6px;}
+.drill-bar:hover{opacity:.72;}
+
 /* ---------- Centro de Alertas ---------- */
 .alerts-banner{border:1px solid #FCA5A5;background:linear-gradient(135deg,#FEF2F2,#FFF7F0);border-radius:12px;padding:12px 16px;margin-bottom:18px;}
 .alerts-banner.warn-only{border-color:#FDE68A;background:linear-gradient(135deg,#FFFBEB,#FFFDF5);}
@@ -405,8 +408,8 @@ const DEFAULT_SETTINGS = {
 let DB = loadDB();
 let currentView = 'dashboard';
 let sortState = { col: 'score', dir: 'asc' };
-let filters = { area: '', tipo: '', riesgo: '', estado: '', q: '' };
-let licFilters = { quick: 'todas', categoria: '', estado: '', moneda: '', q: '' };
+let filters = { area: '', tipo: '', riesgo: '', estado: '', q: '', cpuGen: null, storageType: null, secFlag: null, lifecycle: null };
+let licFilters = { quick: 'todas', categoria: '', estado: '', moneda: '', q: '', diasMin: null, diasMax: null };
 let editingLicense = null;
 let charts = {};
 let editingAsset = null;
@@ -976,6 +979,34 @@ const VIEW_TITLES = {
   settings: ['Configuración de reglas', () => 'Umbrales del motor de obsolescencia — aplican a todos los clientes']
 };
 
+/* ---------- Navegación con filtro (drill-down desde gráficos/informe) ---------- */
+function goToInventoryFiltered(overrides){
+  currentView = 'table';
+  filters = Object.assign({ area:'', tipo:'', riesgo:'', estado:'', q:'', cpuGen:null, storageType:null, secFlag:null, lifecycle:null }, overrides);
+  document.getElementById('reportOverlay').classList.remove('show');
+  render();
+}
+function goToLicensesFiltered(overrides){
+  currentView = 'licenses';
+  licFilters = Object.assign({ quick:'todas', categoria:'', estado:'', moneda:'', q:'', diasMin:null, diasMax:null }, overrides);
+  document.getElementById('reportOverlay').classList.remove('show');
+  render();
+}
+function activeFilterSummary(){
+  const parts = [];
+  if(filters.riesgo) parts.push('Riesgo: '+({critical:'Crítico',warning:'Advertencia',optimal:'Óptimo'}[filters.riesgo]));
+  if(filters.area) parts.push('Área: '+filters.area);
+  if(filters.tipo) parts.push('Tipo: '+filters.tipo);
+  if(filters.estado) parts.push('Gestión: '+filters.estado);
+  if(filters.cpuGen) parts.push('CPU: '+filters.cpuGen);
+  if(filters.storageType) parts.push('Almacenamiento: '+filters.storageType);
+  if(filters.secFlag==='noav') parts.push('Sin antivirus');
+  if(filters.secFlag==='legacy') parts.push('SO no soportado');
+  if(filters.lifecycle) parts.push('Ciclo de vida: '+({eol:'Fin de vida',repotenciable:'Repotenciable',estable:'Estable'}[filters.lifecycle]));
+  if(filters.q) parts.push('Búsqueda: "'+filters.q+'"');
+  return parts;
+}
+
 function render(){
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.view===currentView));
   renderClientSelect();
@@ -1122,6 +1153,7 @@ function renderDashboard(assets){
     </div>
   `;
   drawCharts(assets);
+  bindLifecycleAndComplianceClicks(compliance);
   const btnPlan = document.getElementById('btnPlanToReport');
   if(btnPlan) btnPlan.onclick = ()=>{
     renderExecReport();
@@ -1139,7 +1171,11 @@ function drawCharts(assets){
   charts.risk = new Chart(document.getElementById('chartRisk'), {
     type:'doughnut',
     data:{ labels:['Crítico','Advertencia','Óptimo'], datasets:[{ data:[critical,warning,optimal], backgroundColor:['#EF4444','#F59E0B','#10B981'], borderWidth:0 }] },
-    options:{ maintainAspectRatio:false, cutout:'68%', plugins:{legend:{position:'bottom',labels:{boxWidth:9,font:{size:11}}}} }
+    options:{
+      maintainAspectRatio:false, cutout:'68%', plugins:{legend:{position:'bottom',labels:{boxWidth:9,font:{size:11}}}},
+      onHover:(e,els)=>{ e.native.target.style.cursor = els.length?'pointer':'default'; },
+      onClick:(e,els)=>{ if(!els.length) return; const level=['critical','warning','optimal'][els[0].index]; goToInventoryFiltered({ riesgo: level }); }
+    }
   });
 
   const genBuckets = {};
@@ -1154,7 +1190,11 @@ function drawCharts(assets){
   charts.cpu = new Chart(document.getElementById('chartCpu'), {
     type:'bar',
     data:{ labels:genKeys, datasets:[{ data:genKeys.map(k=>genBuckets[k]), backgroundColor:'#0052FF', borderRadius:4, maxBarThickness:26 }] },
-    options:{ maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:true, ticks:{precision:0}}, x:{ticks:{font:{size:10}}} } }
+    options:{
+      maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:true, ticks:{precision:0}}, x:{ticks:{font:{size:10}}} },
+      onHover:(e,els)=>{ e.native.target.style.cursor = els.length?'pointer':'default'; },
+      onClick:(e,els)=>{ if(!els.length) return; goToInventoryFiltered({ cpuGen: genKeys[els[0].index] }); }
+    }
   });
 
   const stoBuckets = {};
@@ -1163,7 +1203,11 @@ function drawCharts(assets){
   charts.storage = new Chart(document.getElementById('chartStorage'), {
     type:'pie',
     data:{ labels:Object.keys(stoBuckets), datasets:[{ data:Object.values(stoBuckets), backgroundColor:Object.keys(stoBuckets).map(k=>stoColors[k]||'#CBD5E1'), borderWidth:0 }] },
-    options:{ maintainAspectRatio:false, plugins:{legend:{position:'bottom',labels:{boxWidth:9,font:{size:11}}}} }
+    options:{
+      maintainAspectRatio:false, plugins:{legend:{position:'bottom',labels:{boxWidth:9,font:{size:11}}}},
+      onHover:(e,els)=>{ e.native.target.style.cursor = els.length?'pointer':'default'; },
+      onClick:(e,els)=>{ if(!els.length) return; goToInventoryFiltered({ storageType: Object.keys(stoBuckets)[els[0].index] }); }
+    }
   });
 
   // Salud por Área — barras horizontales, ordenadas de peor a mejor
@@ -1183,7 +1227,9 @@ function drawCharts(assets){
           const r = areaRows[ctx.dataIndex];
           return `${r.avg}% salud · ${r.total} equipos${r.critical?' · '+r.critical+' crítico'+(r.critical>1?'s':''):''}`;
         } } } },
-        scales:{ x:{ min:0, max:100, ticks:{ callback:v=>v+'%' } }, y:{ ticks:{ font:{size:11} } } }
+        scales:{ x:{ min:0, max:100, ticks:{ callback:v=>v+'%' } }, y:{ ticks:{ font:{size:11} } } },
+        onHover:(e,els)=>{ e.native.target.style.cursor = els.length?'pointer':'default'; },
+        onClick:(e,els)=>{ if(!els.length) return; goToInventoryFiltered({ area: areaRows[els[0].index].area }); }
       }
     });
   }
@@ -1217,6 +1263,10 @@ function drawCharts(assets){
   const secCoverage = computeSecurityCoverage(assets);
   charts.gaugeAv = drawGauge('gaugeAntivirus', secCoverage.avPct);
   charts.gaugeSO = drawGauge('gaugeSO', secCoverage.soPct);
+  const gaugeAvEl = document.getElementById('gaugeAntivirus');
+  const gaugeSOEl = document.getElementById('gaugeSO');
+  if(gaugeAvEl){ gaugeAvEl.style.cursor='pointer'; gaugeAvEl.onclick = ()=>goToInventoryFiltered({ secFlag:'noav' }); }
+  if(gaugeSOEl){ gaugeSOEl.style.cursor='pointer'; gaugeSOEl.onclick = ()=>goToInventoryFiltered({ secFlag:'legacy' }); }
 }
 
 /* ---------- Tabla ---------- */
@@ -1256,10 +1306,10 @@ function commercialPlanHTML(c){
 
 function lifecycleMatrixHTML(l){
   const total = l.eol.length + l.repotenciable.length + l.estable.length || 1;
-  function bar(label, count, color, desc){
+  function bar(label, count, color, desc, key){
     const pct = Math.round(count/total*100);
     return `
-    <div style="margin-bottom:14px;">
+    <div class="drill-bar" data-lifecycle="${key}" style="margin-bottom:14px;cursor:pointer;">
       <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px;">
         <span style="font-weight:700;">${label}</span><span style="color:var(--muted);">${count} equipos (${pct}%)</span>
       </div>
@@ -1274,16 +1324,16 @@ function lifecycleMatrixHTML(l){
       <div style="font-size:32px;font-weight:800;color:${l.capacidadActualizacion>=40?'#047857':'#B45309'};">${l.capacidadActualizacion}%</div>
       <div style="font-size:12.5px;color:var(--muted);">Capacidad de actualización del parque — equipos donde una mejora de componentes (RAM/SSD) evita el reemplazo completo.</div>
     </div>
-    ${bar('Fin de vida (EOL) — reemplazo inmediato', l.eol.length, 'var(--critical)', 'CPU obsoleta: ningún upgrade de componentes es económicamente viable.')}
-    ${bar('Repotenciable — upgrade de componentes', l.repotenciable.length, 'var(--warning)', 'CPU vigente pero RAM y/o almacenamiento limitan el rendimiento.')}
-    ${bar('Estable — sin acción requerida', l.estable.length, 'var(--optimal)', 'Equipo dentro de parámetros óptimos.')}
+    ${bar('Fin de vida (EOL) — reemplazo inmediato', l.eol.length, 'var(--critical)', 'CPU obsoleta: ningún upgrade de componentes es económicamente viable. Click para ver los equipos.', 'eol')}
+    ${bar('Repotenciable — upgrade de componentes', l.repotenciable.length, 'var(--warning)', 'CPU vigente pero RAM y/o almacenamiento limitan el rendimiento. Click para ver los equipos.', 'repotenciable')}
+    ${bar('Estable — sin acción requerida', l.estable.length, 'var(--optimal)', 'Equipo dentro de parámetros óptimos. Click para ver los equipos.', 'estable')}
   `;
 }
 
 function complianceLightsHTML(c){
-  function light(label, value, ok, warn){
+  function light(label, value, ok, warn, key){
     const color = value<=ok?'var(--optimal)':value<=warn?'var(--warning)':'var(--critical)';
-    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+    return `<div class="drill-bar" data-compliance="${key}" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer;">
       <div style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0;"></div>
       <div style="flex:1;font-size:12.5px;">${label}</div>
       <div style="font-weight:800;font-size:14px;color:${color};">${value}</div>
@@ -1292,13 +1342,30 @@ function complianceLightsHTML(c){
   const licScopeNote = c.scope==='cliente' ? `de ${escapeHtml(DB.active)}` : `de toda la cartera (sin licencias vinculadas al nombre "${escapeHtml(DB.active)}")`;
   return `
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Parches y sistema operativo</div>
-    ${light('Equipos con SO fuera de soporte', c.soLegacy, 0, Math.ceil(c.totalEq*0.15))}
+    ${light('Equipos con SO fuera de soporte', c.soLegacy, 0, Math.ceil(c.totalEq*0.15), 'so')}
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin:16px 0 10px;">Vencimiento de licencias (${licScopeNote})</div>
-    ${light('Vencidas', c.vencidas, 0, 2)}
-    ${light('Vencen en 30 días', c.d30, 0, 3)}
-    ${light('Vencen en 60 días', c.d60, 2, 5)}
-    ${light('Vencen en 90 días', c.d90, 3, 8)}
+    ${light('Vencidas', c.vencidas, 0, 2, 'vencidas')}
+    ${light('Vencen en 30 días', c.d30, 0, 3, 'd30')}
+    ${light('Vencen en 60 días', c.d60, 2, 5, 'd60')}
+    ${light('Vencen en 90 días', c.d90, 3, 8, 'd90')}
   `;
+}
+
+function bindLifecycleAndComplianceClicks(compliance){
+  document.querySelectorAll('[data-lifecycle]').forEach(el=>{
+    el.onclick = ()=>goToInventoryFiltered({ lifecycle: el.dataset.lifecycle });
+  });
+  document.querySelectorAll('[data-compliance]').forEach(el=>{
+    el.onclick = ()=>{
+      const key = el.dataset.compliance;
+      const qScope = compliance.scope==='cliente' ? DB.active : '';
+      if(key==='so') goToInventoryFiltered({ secFlag:'legacy' });
+      else if(key==='vencidas') goToLicensesFiltered({ quick:'vencidas', q:qScope });
+      else if(key==='d30') goToLicensesFiltered({ diasMin:0, diasMax:30, q:qScope });
+      else if(key==='d60') goToLicensesFiltered({ diasMin:31, diasMax:60, q:qScope });
+      else if(key==='d90') goToLicensesFiltered({ diasMin:61, diasMax:90, q:qScope });
+    };
+  });
 }
 
 function improvedAssetsHTML(list){
@@ -1424,36 +1491,48 @@ function renderTableView(assets){
     </div>
 
     <div class="panel">
-      <div class="panel-head">
-        <h3>${assets.length} equipos</h3>
-        <div class="filters no-print">
-          <input type="search" id="fSearch" placeholder="Buscar hostname o usuario..." value="${filters.q}">
-          <select id="fArea"><option value="">Todas las áreas</option>${areas.map(a=>`<option ${filters.area===a?'selected':''}>${escapeHtml(a)}</option>`).join('')}</select>
-          <select id="fTipo"><option value="">Todos los tipos</option>${tipos.map(t=>`<option ${filters.tipo===t?'selected':''}>${escapeHtml(t)}</option>`).join('')}</select>
-          <select id="fRiesgo">
-            <option value="">Todo riesgo</option>
-            <option value="critical" ${filters.riesgo==='critical'?'selected':''}>Crítico</option>
-            <option value="warning" ${filters.riesgo==='warning'?'selected':''}>Advertencia</option>
-            <option value="optimal" ${filters.riesgo==='optimal'?'selected':''}>Óptimo</option>
-          </select>
-          <select id="fEstado">
-            <option value="">Toda gestión</option>
-            <option value="Pendiente" ${filters.estado==='Pendiente'?'selected':''}>Pendiente</option>
-            <option value="Cotizado" ${filters.estado==='Cotizado'?'selected':''}>Cotizado</option>
-            <option value="Aprobado" ${filters.estado==='Aprobado'?'selected':''}>Aprobado</option>
-            <option value="Reemplazado" ${filters.estado==='Reemplazado'?'selected':''}>Reemplazado</option>
-          </select>
+      <div class="panel-head" style="flex-direction:column;align-items:stretch;gap:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+          <h3>${assets.length} equipos</h3>
+          <div class="filters no-print">
+            <input type="search" id="fSearch" placeholder="Buscar hostname o usuario..." value="${filters.q}">
+            <select id="fArea"><option value="">Todas las áreas</option>${areas.map(a=>`<option ${filters.area===a?'selected':''}>${escapeHtml(a)}</option>`).join('')}</select>
+            <select id="fTipo"><option value="">Todos los tipos</option>${tipos.map(t=>`<option ${filters.tipo===t?'selected':''}>${escapeHtml(t)}</option>`).join('')}</select>
+            <select id="fRiesgo">
+              <option value="">Todo riesgo</option>
+              <option value="critical" ${filters.riesgo==='critical'?'selected':''}>Crítico</option>
+              <option value="warning" ${filters.riesgo==='warning'?'selected':''}>Advertencia</option>
+              <option value="optimal" ${filters.riesgo==='optimal'?'selected':''}>Óptimo</option>
+            </select>
+            <select id="fEstado">
+              <option value="">Toda gestión</option>
+              <option value="Pendiente" ${filters.estado==='Pendiente'?'selected':''}>Pendiente</option>
+              <option value="Cotizado" ${filters.estado==='Cotizado'?'selected':''}>Cotizado</option>
+              <option value="Aprobado" ${filters.estado==='Aprobado'?'selected':''}>Aprobado</option>
+              <option value="Reemplazado" ${filters.estado==='Reemplazado'?'selected':''}>Reemplazado</option>
+            </select>
+          </div>
         </div>
+        ${activeFilterSummary().length ? `<div class="no-print" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#EFF4FF;border:1px solid #BFDBFE;border-radius:8px;padding:8px 12px;">
+          <span style="font-size:11.5px;font-weight:700;color:var(--blue);">🔎 Filtrado desde gráfico:</span>
+          <span style="font-size:11.5px;color:var(--ink);">${activeFilterSummary().join(' · ')}</span>
+          <button class="mini-btn" id="btnClearDrilldown" style="border-color:var(--blue);color:var(--blue);margin-left:auto;">Quitar filtro ✕</button>
+        </div>` : ''}
       </div>
       <div class="table-scroll" id="tableWrap"></div>
-      <div class="table-foot"><span id="tableCount"></span><span>Click en una fila para ver el diagnóstico completo</span></div>
+      <div class="table-foot"><span id="tableCount"></span><span>Haz clic en una fila para ver el diagnóstico completo</span></div>
     </div>
   `;
   document.getElementById('fSearch').oninput = e=>{ filters.q = e.target.value; refreshTable(); };
-  document.getElementById('fArea').onchange = e=>{ filters.area = e.target.value; refreshTable(); };
+  document.getElementById('fArea').onchange = e=>{ filters.area = e.target.value; filters.cpuGen=filters.storageType=filters.secFlag=filters.lifecycle=null; refreshTable(); };
   document.getElementById('fTipo').onchange = e=>{ filters.tipo = e.target.value; refreshTable(); };
-  document.getElementById('fRiesgo').onchange = e=>{ filters.riesgo = e.target.value; refreshTable(); };
+  document.getElementById('fRiesgo').onchange = e=>{ filters.riesgo = e.target.value; filters.lifecycle=null; refreshTable(); };
   document.getElementById('fEstado').onchange = e=>{ filters.estado = e.target.value; refreshTable(); };
+  const btnClear = document.getElementById('btnClearDrilldown');
+  if(btnClear) btnClear.onclick = ()=>{
+    filters = { area:'', tipo:'', riesgo:'', estado:'', q:'', cpuGen:null, storageType:null, secFlag:null, lifecycle:null };
+    renderTableView(activeAssets());
+  };
   refreshTable();
 }
 
@@ -1463,6 +1542,19 @@ function applyFilters(assets){
     if(filters.tipo && a.tipo !== filters.tipo) return false;
     if(filters.riesgo && a.overall !== filters.riesgo) return false;
     if(filters.estado && (a.estado_gestion||'Pendiente') !== filters.estado) return false;
+    if(filters.cpuGen){
+      const label = a.cpu.gen==null ? 'N/D' : (a.cpu.vendor==='AMD'||a.cpu.vendor==='Apple' ? a.cpu.family : 'Gen '+a.cpu.gen);
+      if(label !== filters.cpuGen) return false;
+    }
+    if(filters.storageType && (a.disco_principal.type||'N/D') !== filters.storageType) return false;
+    if(filters.secFlag==='noav' && a.antivirus.active !== false) return false;
+    if(filters.secFlag==='legacy' && !a.so.legacy) return false;
+    if(filters.lifecycle){
+      const isEol = a.levels.cpu==='critical';
+      const isRepo = !isEol && (a.levels.ram==='warning' || a.levels.storage==='warning' || a.levels.ram==='critical' || a.levels.storage==='critical');
+      const cat = isEol ? 'eol' : (isRepo ? 'repotenciable' : 'estable');
+      if(cat !== filters.lifecycle) return false;
+    }
     if(filters.q){
       const q = filters.q.toLowerCase();
       if(!(a.hostname.toLowerCase().includes(q) || a.usuario.toLowerCase().includes(q) || a.id.toLowerCase().includes(q))) return false;
@@ -2126,7 +2218,7 @@ function renderExecReport(){
   const dateStr = new Date().toLocaleDateString('es-PE', {year:'numeric', month:'long', day:'numeric'});
 
   const critRows = critical.slice(0,20).map(a=>`
-    <tr>
+    <tr class="drill-bar no-print" data-report-hostname="${escapeHtml(a.hostname)}" style="cursor:pointer;">
       <td>${escapeHtml(a.usuario)}</td><td>${escapeHtml(a.area)}</td><td>${escapeHtml(a.hostname)}</td>
       <td>${escapeHtml((a.reasons&&a.reasons[0])||'Múltiples factores')}</td>
       <td>${escapeHtml(a.plan[0]||'')}</td>
@@ -2181,10 +2273,10 @@ function renderExecReport(){
         <h3>Análisis de riesgos</h3>
         <p class="report-narrative">${riskNarrative(lifecycle, compliance)}</p>
         <div class="report-summary-grid">
-          <div class="report-kpi"><b style="color:var(--critical)">${lifecycle.eol.length}</b><span>Equipos en fin de vida (EOL)</span></div>
-          <div class="report-kpi"><b style="color:#B45309">${lifecycle.repotenciable.length}</b><span>Repotenciables</span></div>
+          <div class="report-kpi drill-bar no-print" data-report-drill="eol" style="cursor:pointer;"><b style="color:var(--critical)">${lifecycle.eol.length}</b><span>Equipos en fin de vida (EOL)</span></div>
+          <div class="report-kpi drill-bar no-print" data-report-drill="repotenciable" style="cursor:pointer;"><b style="color:#B45309">${lifecycle.repotenciable.length}</b><span>Repotenciables</span></div>
           <div class="report-kpi"><b>${lifecycle.capacidadActualizacion}%</b><span>Capacidad de actualización</span></div>
-          <div class="report-kpi"><b style="color:var(--critical)">${compliance.vencidas + compliance.d30}</b><span>Licencias vencidas o por vencer (30d)</span></div>
+          <div class="report-kpi drill-bar no-print" data-report-drill="licencias" style="cursor:pointer;"><b style="color:var(--critical)">${compliance.vencidas + compliance.d30}</b><span>Licencias vencidas o por vencer (30d)</span></div>
         </div>
       </div>
 
@@ -2205,6 +2297,20 @@ function renderExecReport(){
     </div>
   `;
   drawReportCharts(assets, lifecycle, compliance);
+  document.querySelectorAll('[data-report-drill]').forEach(el=>{
+    el.onclick = ()=>{
+      const key = el.dataset.reportDrill;
+      if(key==='eol') goToInventoryFiltered({ lifecycle:'eol' });
+      else if(key==='repotenciable') goToInventoryFiltered({ lifecycle:'repotenciable' });
+      else if(key==='licencias'){
+        const qScope = compliance.scope==='cliente' ? DB.active : '';
+        goToLicensesFiltered({ diasMax:30, q:qScope });
+      }
+    };
+  });
+  document.querySelectorAll('[data-report-hostname]').forEach(el=>{
+    el.onclick = ()=>goToInventoryFiltered({ riesgo:'critical', q: el.dataset.reportHostname });
+  });
 }
 
 let reportCharts = {};
@@ -2487,6 +2593,8 @@ function applyLicenseFilters(licenses){
     if(licFilters.categoria && l.categoria !== licFilters.categoria) return false;
     if(licFilters.estado && l.estado_calc !== licFilters.estado) return false;
     if(licFilters.moneda && l.moneda !== licFilters.moneda) return false;
+    if(licFilters.diasMin!=null && (l.dias_calc==null || l.dias_calc<licFilters.diasMin)) return false;
+    if(licFilters.diasMax!=null && (l.dias_calc==null || l.dias_calc>licFilters.diasMax)) return false;
     if(licFilters.q){
       const q = licFilters.q.toLowerCase();
       if(!(String(l.producto).toLowerCase().includes(q) || String(l.cliente).toLowerCase().includes(q) || String(l.equipo).toLowerCase().includes(q))) return false;
@@ -2569,9 +2677,14 @@ function renderLicensesView(){
           <button class="chip ${licFilters.quick==='vigentes'?'active':''}" data-quick="vigentes">Vigentes</button>
           <select id="licCategoria" style="border:1px solid var(--line);border-radius:9px;padding:8px 12px;font-size:12.5px;"><option value="">Toda categoría</option>${categorias.map(c=>`<option ${licFilters.categoria===c?'selected':''}>${c}</option>`).join('')}</select>
         </div>
+        ${(licFilters.diasMin!=null || licFilters.diasMax!=null) ? `<div class="no-print" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#EFF4FF;border:1px solid #BFDBFE;border-radius:8px;padding:8px 12px;">
+          <span style="font-size:11.5px;font-weight:700;color:var(--blue);">🔎 Filtrado desde informe:</span>
+          <span style="font-size:11.5px;color:var(--ink);">Vence entre ${licFilters.diasMin??0} y ${licFilters.diasMax??'∞'} días${licFilters.q?' · "'+escapeHtml(licFilters.q)+'"':''}</span>
+          <button class="mini-btn" id="btnClearLicDrilldown" style="border-color:var(--blue);color:var(--blue);margin-left:auto;">Quitar filtro ✕</button>
+        </div>` : ''}
       </div>
       <div class="table-scroll" id="licTableWrap"></div>
-      <div class="table-foot"><span id="licTableCount"></span><span>Click en una fila para editar</span></div>
+      <div class="table-foot"><span id="licTableCount"></span><span>Haz clic en una fila para editar</span></div>
     </div>
   `;
 
@@ -2580,11 +2693,16 @@ function renderLicensesView(){
   document.getElementById('licMoneda').onchange = e=>{ licFilters.moneda = e.target.value; refreshLicenseTable(); };
   document.getElementById('licCategoria').onchange = e=>{ licFilters.categoria = e.target.value; refreshLicenseTable(); };
   document.querySelectorAll('.chip[data-quick]').forEach(chip=>{
-    chip.onclick = ()=>{ licFilters.quick = chip.dataset.quick; render(); };
+    chip.onclick = ()=>{ licFilters.quick = chip.dataset.quick; licFilters.diasMin=null; licFilters.diasMax=null; render(); };
   });
   document.getElementById('btnAddLicense').onclick = ()=>openLicenseModal(null);
   document.getElementById('btnImportLicenses').onclick = ()=>document.getElementById('licenseFileInput').click();
   document.getElementById('btnExportLicenses').onclick = exportLicensesCSV;
+  const btnClearLic = document.getElementById('btnClearLicDrilldown');
+  if(btnClearLic) btnClearLic.onclick = ()=>{
+    licFilters = { quick:'todas', categoria:'', estado:'', moneda:'', q:'', diasMin:null, diasMax:null };
+    render();
+  };
 
   refreshLicenseTable();
 }
