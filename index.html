@@ -1091,7 +1091,6 @@ function renderDashboard(assets){
 
   const lifecycle = computeLifecycleMatrix(assets);
   const compliance = computeComplianceLights(assets);
-  const commercial = computeCommercialPlan(assets);
 
   const root = document.getElementById('viewRoot');
   root.innerHTML = `
@@ -1112,8 +1111,6 @@ function renderDashboard(assets){
         ${trendNoAv || '<div class="kpi-sub">Sin antivirus / SO no soportado</div>'}
       </div>
     </div>
-
-    ${commercialPlanHTML(commercial)}
 
     <div class="charts-row">
       <div class="chart-card"><h3>Distribución de riesgo</h3><div class="wrap"><canvas id="chartRisk"></canvas></div></div>
@@ -1154,11 +1151,6 @@ function renderDashboard(assets){
   `;
   drawCharts(assets);
   bindLifecycleAndComplianceClicks(compliance);
-  const btnPlan = document.getElementById('btnPlanToReport');
-  if(btnPlan) btnPlan.onclick = ()=>{
-    renderExecReport();
-    document.getElementById('reportOverlay').classList.add('show');
-  };
 }
 
 function drawCharts(assets){
@@ -1284,7 +1276,7 @@ function commercialPlanHTML(c){
           <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--blue);margin-bottom:4px;">💼 Plan de Acción Comercial</div>
           <div style="font-size:13px;color:var(--muted);max-width:520px;">Inversión estimada para llevar el parque de "${escapeHtml(DB.active)}" a 90%+ de salud tecnológica (${c.equiposAfectados} equipos por debajo del objetivo).</div>
         </div>
-        <button class="btn btn-primary no-print" id="btnPlanToReport" style="white-space:nowrap;">Generar propuesta →</button>
+        <a class="btn btn-primary no-print" href="https://amikel78-pe.github.io/ProfitOne_Cotizador-Integral/" target="_blank" rel="noopener" style="white-space:nowrap;text-decoration:none;">Generar propuesta →</a>
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:16px;">
         <div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;">
@@ -1716,6 +1708,7 @@ function bindCommercialCalculator(pieces){
 
 function renderRenewalView(assets){
   const root = document.getElementById('viewRoot');
+  const commercial = computeCommercialPlan(assets);
   const priorized = [...assets].filter(a=>a.overall!=='optimal').sort((a,b)=>a.score-b.score);
   const COST = { replace: 2600, ram: 180, storage: 350, os: 90 };
   const phases = { 'Fase 1 · 0-3 meses (Crítico)': [], 'Fase 2 · 3-9 meses (Advertencia alta)': [], 'Fase 3 · 9-18 meses (Advertencia)': [] };
@@ -1756,6 +1749,8 @@ function renderRenewalView(assets){
   const genRows = Object.entries(genBuckets).sort((a,b)=>b[1]-a[1]).map(([g,c])=>`<tr><td>${escapeHtml(g)}</td><td>${c}</td><td>${fmtPct(c/assets.length*100)}</td></tr>`).join('');
 
   root.innerHTML = `
+    ${commercialPlanHTML(commercial)}
+
     <div class="panel" style="margin-bottom:22px;">
       <div class="panel-head"><h3>Calculadora Comercial (USD) — Selección de piezas</h3></div>
       <div style="padding:16px 18px;">${commercialCalculatorHTML(computePiecesInventory(assets), DB.settings.commercialUSD)}</div>
